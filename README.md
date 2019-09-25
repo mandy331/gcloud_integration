@@ -30,4 +30,4 @@
 
 ### 簡單的git指令
 
-    [由此去](git_first.md)
+    [由此去](./GITFIRST.md)
