@@ -24,7 +24,7 @@ class AdManager():
 
         if args[0] is not None:
             if 'order_id' in args[0]:
-                filename = self.download_order_report(self.cert(), '2435186569')
+                filename = self.download_order_report(self.cert(), args[0]['order_id'])
                 self.read_pandas_csv(filename)
 
         # self.print_all_orders(self.cert())
