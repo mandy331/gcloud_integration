@@ -92,7 +92,7 @@ class GmailAttachment():
         except urllib2.HTTPError as e:
             print ('An error occurred: %s' % error)
 
-    def run(self):
+    def run(self, *args, **kwargs):
 
         self.cert()
         results = self.list_messages("me")

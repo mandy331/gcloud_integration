@@ -3,3 +3,4 @@ __pycache__
 attachments/*
 cert/*
 venv
+.DS_Store

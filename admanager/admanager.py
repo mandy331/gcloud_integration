@@ -1,10 +1,12 @@
+import datetime
 import os
 import sys
+import tempfile
 from os import environ as env
 
 from dotenv import load_dotenv
 from googleads import ad_manager, oauth2
-
+import pandas
 load_dotenv()
 
 
@@ -18,9 +20,14 @@ class AdManager():
 
         return ad_manager.AdManagerClient.LoadFromStorage(self.googleads_yaml)
 
-    def run(self):
+    def run(self, *args, **kwargs):
 
-        self.print_all_orders(self.cert())
+        if args[0] is not None:
+            if 'order_id' in args[0]:
+                filename = self.download_order_report(self.cert(), '2435186569')
+                self.read_pandas_csv(filename)
+
+        # self.print_all_orders(self.cert())
 
     def print_all_orders(self, ad_manager_client):
 
@@ -44,3 +51,79 @@ class AdManager():
                 break
 
         print('\nNumber of results found: %s' % response['totalResultSetSize'])
+
+    def download_order_report(self, client, order_id):
+        # Initialize appropriate service.
+        line_item_service = client.GetService('LineItemService', version='v201908')
+        # Initialize a DataDownloader.
+        report_downloader = client.GetDataDownloader(version='v201908')
+
+        # Filter for line items of a given order.
+        statement = (ad_manager.StatementBuilder(version='v201908')
+                    .Where('orderId = :orderId')
+                    .WithBindVariable('orderId', int(order_id)))
+
+        # Collect all line item custom field IDs for an order.
+        custom_field_ids = set()
+
+        # Get users by statement.
+        while True:
+            response = line_item_service.getLineItemsByStatement(
+                statement.ToStatement())
+            if 'results' in response and len(response['results']):
+                print(response['results'][0])
+                # Get custom field IDs from the line items of an order.
+                for line_item in response['results']:
+                    print(line_item['name'])
+                    if 'customFieldValues' in line_item:
+                        for custom_field_value in line_item['customFieldValues']:
+                            custom_field_ids.add(custom_field_value['customFieldId'])
+                statement.offset += statement.limit
+            else:
+                break
+
+        # Modify statement for reports
+        statement.limit = None
+        statement.offset = None
+        statement.Where('ORDER_ID = :orderId')
+        
+        # Create report job.
+        report_job = {
+            'reportQuery': {
+                'dimensions': ['LINE_ITEM_NAME', 'DATE','ORDER_NAME'],
+                'dimensionAttributes': ['LINE_ITEM_START_DATE_TIME','LINE_ITEM_END_DATE_TIME','ORDER_TRAFFICKER'],
+                'statement': statement.ToStatement(),
+                'columns': ['AD_SERVER_IMPRESSIONS','AD_SERVER_CLICKS','AD_SERVER_CTR'],
+                'startDate': datetime.date(2019, 7, 14),
+                'endDate': datetime.date(2019, 7, 31),
+                'customFieldIds': list(custom_field_ids)
+            }
+        }
+
+        print(report_job)
+        
+        try:
+            # Run the report and wait for it to finish.
+            report_job_id = report_downloader.WaitForReport(report_job)
+        except errors.AdManagerReportError as e:
+            print('Failed to generate report. Error was: %s' % e)
+
+        # Change to your preferred export format.
+        export_format = 'CSV_DUMP'
+
+        report_file = tempfile.NamedTemporaryFile(suffix='.csv.gz', mode='wb', delete=False)
+        print(report_file.name)
+        # Download report data.
+        report_downloader.DownloadReportToFile(
+            report_job_id, export_format, report_file)
+
+
+        # Display results.
+        print('Report job with id "%s" downloaded to:\n%s' % (
+            report_job_id, report_file.name))        
+
+        return report_file.name
+
+    def read_pandas_csv(self, report_file):
+        report = pandas.read_csv(report_file)
+        print(report)

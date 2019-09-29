@@ -25,9 +25,9 @@
 ### Ad Manager 提取所有廣告訂單
 
 ```console
-    python app.py -s admanager # 抓出所有的廣告訂單
+    python app.py -s admanager  -p '{"order_id": 廣告訂單ID }'   # 抓出條件是ORDER_ID的廣告訂單
 ```
 
 ### 簡單的git指令
 
-    [由此去](./GITFIRST.md)
+    <a href="GITFIRST.md">由此去</a>

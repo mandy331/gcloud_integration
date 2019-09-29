@@ -3,7 +3,7 @@ import argparse
 import sys
 from admanager.admanager import AdManager
 from gmail_attachments.gmail_attachment import GmailAttachment
-
+import json
 class Empty():
     def run(self):
         print("No such service")
@@ -22,11 +22,15 @@ def main():
 
     parser = argparse.ArgumentParser(description='Google Service Integration')
     parser.add_argument('-s', '--service', help='enter google service')
+    parser.add_argument('-p', '--params', help='custom parameters')
     args = parser.parse_args()
     
     app = factory(args.service)
-    
-    app.run()
+    params = None
+    if args.params:
+        params = json.loads(args.params)
+        
+    app.run(params)
     
     sys.exit()
 
