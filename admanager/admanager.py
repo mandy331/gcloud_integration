@@ -7,6 +7,7 @@ from os import environ as env
 from dotenv import load_dotenv
 from googleads import ad_manager, oauth2
 import pandas
+import argparse
 load_dotenv()
 
 
@@ -21,10 +22,16 @@ class AdManager():
         return ad_manager.AdManagerClient.LoadFromStorage(self.googleads_yaml)
 
     def run(self, *args, **kwargs):
-
         if args[0] is not None:
             if 'order_id' in args[0]:
-                filename = self.download_order_report(self.cert(), args[0]['order_id'])
+                if 'startDate' and 'endDate' in args[0]:
+                    startDate = datetime.datetime.strptime(args[0]['startDate'], "%Y-%m-%d").date()
+                    endDate = datetime.datetime.strptime(args[0]['endDate'], "%Y-%m-%d").date()
+                else:
+                    today = datetime.date.today()
+                    endDate = today + datetime.timedelta(6 - today.weekday())
+                    startDate = endDate - datetime.timedelta(days = 6)
+                filename = self.download_order_report(self.cert(), args[0]['order_id'], startDate, endDate)
                 self.read_pandas_csv(filename)
 
         # self.print_all_orders(self.cert())
@@ -52,7 +59,7 @@ class AdManager():
 
         print('\nNumber of results found: %s' % response['totalResultSetSize'])
 
-    def download_order_report(self, client, order_id):
+    def download_order_report(self, client, order_id, startDate, endDate):
         # Initialize appropriate service.
         line_item_service = client.GetService('LineItemService', version='v201908')
         # Initialize a DataDownloader.
@@ -94,8 +101,8 @@ class AdManager():
                 'dimensionAttributes': ['LINE_ITEM_START_DATE_TIME','LINE_ITEM_END_DATE_TIME','ORDER_TRAFFICKER'],
                 'statement': statement.ToStatement(),
                 'columns': ['AD_SERVER_IMPRESSIONS','AD_SERVER_CLICKS','AD_SERVER_CTR'],
-                'startDate': datetime.date(2019, 7, 14),
-                'endDate': datetime.date(2019, 7, 31),
+                'startDate': startDate,
+                'endDate': endDate,
                 'customFieldIds': list(custom_field_ids)
             }
         }
@@ -111,7 +118,7 @@ class AdManager():
         # Change to your preferred export format.
         export_format = 'CSV_DUMP'
 
-        report_file = tempfile.NamedTemporaryFile(suffix='.csv.gz', mode='wb', delete=False)
+        report_file = tempfile.NamedTemporaryFile(suffix='.csv.gz', mode='wb', delete = False)
         print(report_file.name)
         # Download report data.
         report_downloader.DownloadReportToFile(
@@ -127,3 +134,18 @@ class AdManager():
     def read_pandas_csv(self, report_file):
         report = pandas.read_csv(report_file)
         print(report)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
