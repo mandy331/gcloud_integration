@@ -7,7 +7,6 @@ from os import environ as env
 from dotenv import load_dotenv
 from googleads import ad_manager, oauth2
 import pandas
-import argparse
 load_dotenv()
 
 
@@ -22,6 +21,7 @@ class AdManager():
         return ad_manager.AdManagerClient.LoadFromStorage(self.googleads_yaml)
 
     def run(self, *args, **kwargs):
+
         if args[0] is not None:
             if 'order_id' in args[0]:
                 if 'startDate' and 'endDate' in args[0]:
@@ -118,7 +118,7 @@ class AdManager():
         # Change to your preferred export format.
         export_format = 'CSV_DUMP'
 
-        report_file = tempfile.NamedTemporaryFile(suffix='.csv.gz', mode='wb', delete = False)
+        report_file = tempfile.NamedTemporaryFile(suffix='.csv.gz', mode='wb', delete=False)
         print(report_file.name)
         # Download report data.
         report_downloader.DownloadReportToFile(
@@ -134,18 +134,3 @@ class AdManager():
     def read_pandas_csv(self, report_file):
         report = pandas.read_csv(report_file)
         print(report)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
