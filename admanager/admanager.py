@@ -23,15 +23,16 @@ class AdManager():
     def run(self, *args, **kwargs):
 
         if args[0] is not None:
-            if 'order_id' in args[0]:
-                if 'startDate' and 'endDate' in args[0]:
-                    startDate = datetime.datetime.strptime(args[0]['startDate'], "%Y-%m-%d").date()
-                    endDate = datetime.datetime.strptime(args[0]['endDate'], "%Y-%m-%d").date()
+            params = args[0]
+            if 'order_id' in params:
+                if 'startDate' in params and 'endDate' in params:
+                    startDate = datetime.datetime.strptime(params['startDate'], "%Y-%m-%d").date()
+                    endDate = datetime.datetime.strptime(params['endDate'], "%Y-%m-%d").date()
                 else:
                     today = datetime.date.today()
                     endDate = today + datetime.timedelta(6 - today.weekday())
                     startDate = endDate - datetime.timedelta(days = 6)
-                filename = self.download_order_report(self.cert(), args[0]['order_id'], startDate, endDate)
+                filename = self.download_order_report(self.cert(), params['order_id'], startDate, endDate)
                 self.read_pandas_csv(filename)
 
         # self.print_all_orders(self.cert())
