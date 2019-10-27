@@ -4,9 +4,11 @@ import os.path
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from os import environ as env
+
 from pprint import pprint
 from googleapiclient import discovery
-
+import pandas
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly','https://www.googleapis.com/auth/drive','https://www.googleapis.com/auth/spreadsheets']
@@ -15,13 +17,13 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly','https://www.g
 # SAMPLE_SPREADSHEET_ID = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
 # SAMPLE_RANGE_NAME = 'Class Data!A2:E'
 
+class GoogleSheets:
 
-class googlesheets:
-
-    def __init__(self):
+    def __init__(self, report):
             self.token_pickle = env.get("GOOGLESHEETS_TOKEN_PICKLE", "googlesheets_token.pickle")
             self.googlesheets_credentials = env.get("GOOGLESHEETS_CREDENTIALS", "googlesheets_credentials.json")
             self.service = None
+            self.report = report
             pass
 
     def cert(self):
@@ -48,22 +50,41 @@ class googlesheets:
             with open(self.token_pickle, 'wb') as token:
                 pickle.dump(creds, token)
 
-        self.service = build('sheets', 'v4', credentials=creds)
+        self.service = discovery.build('sheets', 'v4', credentials=creds)
 
-    def create_spreadsheet(self, spreadsheet_name):
+    def run(self, *args, **kwargs):
+
+        self.cert()
         
-        spreadsheet = {
-            'properties': {
-                'title': spreadsheet_name
-            }
-        }
-        spreadsheet = service.spreadsheets().create(body=spreadsheet,
-                                            fields='spreadsheetId')
-        response = spreadsheet.execute()
+        if args[0] is None:
+            return None
 
-        return response["spreadsheetId"]
+        params = args[0]
 
-    def get_template_values(self, template_spreadsheet_id, template_sheet_id):
+        if 'template_spreadsheet_id' not in params:
+            return None
+
+        if 'template_sheet_id' not in params:
+            return None
+
+        if 'placementmap_spreadsheet_id' not in params:
+            return None
+
+        if 'spreadsheet_name' not in params:
+            return None
+            
+        read_template = self.get_template_values(params["template_spreadsheet_id"])
+        read_palcementmap = self.get_placementmap_values(params['placementmap_spreadsheet_id'])
+        merge_template_placementmap = self.merge_template_placementmap(read_template, read_palcementmap)
+
+        create_spreadsheet_id = self.create_spreadsheet(params['spreadsheet_name'])
+        sheet_id = self.copy_template_to_sheets(params["template_spreadsheet_id"], params["template_sheet_id"], create_spreadsheet_id)
+        self.delete_first_sheets(create_spreadsheet_id)
+        self.rename_sheet(create_spreadsheet_id, sheet_id)
+        update_data = self.merge_report_data(merge_template_placementmap,self.report)
+        self.update_values(create_spreadsheet_id, update_data)
+        
+    def get_template_values(self, template_spreadsheet_id):
         
         spreadsheet_id = template_spreadsheet_id  # TODO: Update placeholder value.
 
@@ -82,46 +103,102 @@ class googlesheets:
         # The default dateTime render option is [DateTimeRenderOption.SERIAL_NUMBER].
         date_time_render_option = 'SERIAL_NUMBER'  # TODO: Update placeholder value.
 
-        request = service.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range=range_, valueRenderOption=value_render_option, dateTimeRenderOption=date_time_render_option)
+        request = self.service.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range=range_, valueRenderOption=value_render_option, dateTimeRenderOption=date_time_render_option)
         response = request.execute()
 
         # TODO: Change code below to process the `response` dict:
         template_placement_col = response["values"][0]
-        placement_col, placement_name = [], []
+        placement_col1, placement_col2, placement_col3, placement_name = [], [], [], []
         for i in range(1, len(template_placement_col)):
             if template_placement_col[i] != "":
                 placement_name.append(template_placement_col[i])
                 if i <= 26:
-                    placement_col.append(chr(64+i))
+                    placement_col1.append(chr(64+i+1))
+                    placement_col2.append(chr(64+i+2))
+                    placement_col3.append(chr(64+i+3))
                 else:
                     i = i - 26
-                    placement_col.append(chr(65)+chr(64+i))
+                    placement_col1.append(chr(65)+chr(64+i+1))
+                    placement_col2.append(chr(65)+chr(64+i+2))
+                    placement_col3.append(chr(65)+chr(64+i+3))
 
-        placement = zip(placement_col, placement_name)
-        placement_df = pd.DataFrame(placement,columns = ["Column","版位名稱"])
-        print(placement_df)
+        template = zip(placement_col1, placement_col2, placement_col3, placement_name)
+        template_df = pandas.DataFrame(template,columns = ["Column1","Column2","Column3","版位名稱"]).reset_index(drop = True)
+        print(template_df)
 
-        return placement_df         
+        return template_df   
 
-    def copy_template_to_sheets(self, template_spreadsheet_id, template_sheet_id, spreadsheet_id):
+    def get_placementmap_values(self, placement_map_id):
+
+        spreadsheet_id = placement_map_id  # TODO: Update placeholder value.
+
+        # The A1 notation of the values to retrieve.
+        range_ = '工作表1'  # TODO: Update placeholder value.
+
+        majorDimension = 'COLUMN'
+
+        # How values should be represented in the output.
+        # The default render option is ValueRenderOption.FORMATTED_VALUE.
+        value_render_option = 'FORMATTED_VALUE'  # TODO: Update placeholder value.
+
+        # How dates, times, and durations should be represented in the output.
+        # This is ignored if value_render_option is
+        # FORMATTED_VALUE.
+        # The default dateTime render option is [DateTimeRenderOption.SERIAL_NUMBER].
+        date_time_render_option = 'SERIAL_NUMBER'  # TODO: Update placeholder value.
+
+        request = self.service.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range=range_, valueRenderOption=value_render_option, dateTimeRenderOption=date_time_render_option)
+        response = request.execute()
+
+        # TODO: Change code below to process the `response` dict:
+        placementmap_df = pandas.DataFrame(response["values"][1:],columns =["版位名稱","委刊項對照名稱"]).reset_index(drop = True) 
+
+        return placementmap_df
+
+    def merge_template_placementmap(self, template_df, placementmap_df):
+        merge_template_placementmap = pandas.merge(template_df, placementmap_df, on = "版位名稱").reset_index(drop = True)
+        print(merge_template_placementmap)
+        return merge_template_placementmap
+
+      
+    def create_spreadsheet(self, spreadsheet_name):
         
-        spreadsheet_id =  template_spreadsheet_id # TODO: Update placeholder value.
+        spreadsheet = {
+            'properties': {
+                'title': spreadsheet_name
+            }
+        }
+        spreadsheet = self.service.spreadsheets().create(body=spreadsheet,
+                                            fields='spreadsheetId')
+        response = spreadsheet.execute()
+
+        spreadsheet_id = response.get("spreadsheetId", "")
+        
+        return spreadsheet_id
+
+        pprint(response["spreadsheetId"])
+
+    def copy_template_to_sheets(self, template_spreadsheet_id, template_sheet_id, create_spreadsheet_id):
+        
+        spreadsheet_id = template_spreadsheet_id # TODO: Update placeholder value.
 
         # The ID of the sheet to copy.
         sheet_id = template_sheet_id  # TODO: Update placeholder value.
 
         copy_sheet_to_another_spreadsheet_request_body = {
             # The ID of the spreadsheet to copy the sheet to.
-            'destination_spreadsheet_id': spreadsheet_id,
+            'destination_spreadsheet_id': create_spreadsheet_id,
         }
 
-        request = service.spreadsheets().sheets().copyTo(spreadsheetId=spreadsheet_id, sheetId=sheet_id, body=copy_sheet_to_another_spreadsheet_request_body)
+        request = self.service.spreadsheets().sheets().copyTo(spreadsheetId=spreadsheet_id, sheetId=sheet_id, body=copy_sheet_to_another_spreadsheet_request_body)
         response = request.execute()
 
         # TODO: Change code below to process the `response` dict:
         pprint(response["sheetId"])
         
-        return response["sheetId"]
+        sheet_id = response.get("sheetId", "")
+        
+        return sheet_id
 
     def delete_first_sheets(self, spreadsheet_id):
         
@@ -140,13 +217,13 @@ class googlesheets:
             ], 
         }
 
-        request = service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body=batch_update_spreadsheet_request_body)
+        request = self.service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body=batch_update_spreadsheet_request_body)
         response = request.execute()
 
         # TODO: Change code below to process the `response` dict:
         pprint(response)
 
-    def rename_sheet(self, spreadsheet_id, sheet_id, sheet_name):
+    def rename_sheet(self, spreadsheet_id, sheet_id):
 
         spreadsheet_id = spreadsheet_id # TODO: Update placeholder value.
 
@@ -159,7 +236,7 @@ class googlesheets:
                 "updateSheetProperties": {
                     "properties": {
                         "sheetId": sheet_id,
-                        "title": sheet_name,
+                        "title": "成效報表",
                     },
                     "fields": "title"
                     }
@@ -167,8 +244,89 @@ class googlesheets:
             ],  
         }
 
-        request = service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body=batch_update_spreadsheet_request_body)
+        request = self.service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body=batch_update_spreadsheet_request_body)
         response = request.execute()
 
         # TODO: Change code below to process the `response` dict:
         pprint(response)
+
+    def merge_report_data(self, merge_template_placementmap, advertisement_report):
+        # 走期
+        period = advertisement_report[["Dimension.DATE"]]
+        period = period.drop_duplicates(inplace=False).sort_values(by = "Dimension.DATE").reset_index(drop = True)
+        period["Index"] = [i+8 for i in range(len(period))] # 從第八行開始填入Imps.clicks.CTR
+        print(period)
+
+        # 合併 走期、版位表、成效報表
+        all_data = pandas.merge(advertisement_report, merge_template_placementmap, left_on = "PLACEMENT", right_on = "委刊項對照名稱")
+        all_data = pandas.merge(all_data, period, on = "Dimension.DATE")
+        print(all_data)
+
+        # 整理要放到googlesheets的成效數據，仍為DataFrame格式
+        clean_data = pandas.DataFrame(all_data.groupby(['Column1','Column2','Column3','Index'])['Column.AD_SERVER_IMPRESSIONS','Column.AD_SERVER_CLICKS'].sum().reset_index(drop=False))
+        clean_data["Column.AD_SERVER_CTR"] = round(clean_data["Column.AD_SERVER_CLICKS"] / clean_data["Column.AD_SERVER_IMPRESSIONS"], 4)
+        clean_data['MIN'], clean_data['MAX'] = '', ''
+        unique_column = list(clean_data['Column1'].unique())
+        for i in unique_column:
+            clean_data.loc[clean_data.Column1 == i, "MIN"] =  int(clean_data[clean_data['Column1'] == i].groupby(['Column1'])['Index'].min())
+            clean_data.loc[clean_data.Column1 == i, "MAX"] =  int(clean_data[clean_data['Column1'] == i].groupby(['Column1'])['Index'].max())
+
+        def Fill_Range(DataFrame):
+            Range =  str(DataFrame["Column1"]) + str(DataFrame["MIN"]) + ":" + str(DataFrame["Column3"]) + str(DataFrame["MAX"])
+            return Range
+
+        clean_data['range'] = clean_data.apply(Fill_Range,1)
+        print(clean_data)
+
+        # 將clean_data轉為可放入googlesheets的格式
+        unique_range = list(set(clean_data["range"]))
+        update_data = []
+        for i in unique_range:
+            df = clean_data[clean_data["range"] == i].reset_index(drop = True)
+            values = []
+            for j in range(len(df)):
+                values.append([int(df["Column.AD_SERVER_IMPRESSIONS"][j]),int(df["Column.AD_SERVER_CLICKS"][j]),int(df["Column.AD_SERVER_CTR"][j])])
+            print(str('成效報表!')+ str(i))
+
+            data = {
+                    "range": str('成效報表!') + i,
+                    'majorDimension': 'ROWS',
+                    "values":values,
+                }
+            update_data.append(data)
+        
+        # 將日期填入googlesheets
+        date = []
+        for i in range(len(period)):
+            date.append([str(period["Dimension.DATE"][i])]) 
+        data = {
+                "range": "成效報表!A8:A",
+                'majorDimension': 'ROWS',
+                "values":date,
+            }
+        update_data.append(data)
+
+        return update_data
+           
+    def update_values(self, spreadsheet_id, update_data):
+
+        spreadsheet_id = spreadsheet_id # TODO: Update placeholder value.
+
+        batch_update_values_request_body = {
+            # How the input data should be interpreted.
+            'value_input_option': 'RAW',  # TODO: Update placeholder value.
+            # The new values to apply to the spreadsheet.
+            # append進去
+            'data': update_data,
+
+        }
+
+        request = self.service.spreadsheets().values().batchUpdate(spreadsheetId=spreadsheet_id, body=batch_update_values_request_body)
+        response = request.execute()
+
+        # TODO: Change code below to process the `response` dict:
+        pprint(response)
+
+
+
+
