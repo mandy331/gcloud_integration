@@ -7,6 +7,7 @@ from os import environ as env
 from dotenv import load_dotenv
 from googleads import ad_manager, oauth2
 import pandas
+import gzip
 load_dotenv()
 
 
@@ -22,20 +23,27 @@ class AdManager():
 
     def run(self, *args, **kwargs):
 
-        if args[0] is not None:
-            params = args[0]
-            if 'order_id' in params:
-                if 'startDate' in params and 'endDate' in params:
-                    startDate = datetime.datetime.strptime(params['startDate'], "%Y-%m-%d").date()
-                    endDate = datetime.datetime.strptime(params['endDate'], "%Y-%m-%d").date()
-                else:
-                    today = datetime.date.today()
-                    endDate = today + datetime.timedelta(6 - today.weekday())
-                    startDate = endDate - datetime.timedelta(days = 6)
-                filename = self.download_order_report(self.cert(), params['order_id'], startDate, endDate)
-                self.read_pandas_csv(filename)
+        if args[0] is None:
+            return None
 
-        # self.print_all_orders(self.cert())
+        params = args[0]
+
+        if 'order_id' not in params:
+            return None
+        
+        if 'start_date' in params and 'end_date' in params:
+            start_date = datetime.datetime.strptime(params['start_date'], "%Y-%m-%d").date()
+            end_date = datetime.datetime.strptime(params['end_date'], "%Y-%m-%d").date()
+        else:
+            today = datetime.date.today()
+            end_date = today + datetime.timedelta(6 - today.weekday())
+            start_date = end_date - datetime.timedelta(days = 6)
+        
+        filename = self.download_order_report(self.cert(), params['order_id'], start_date, end_date)
+        advertisement_report = self.advertisement_report(filename)
+
+        return advertisement_report
+
 
     def print_all_orders(self, ad_manager_client):
 
@@ -60,7 +68,7 @@ class AdManager():
 
         print('\nNumber of results found: %s' % response['totalResultSetSize'])
 
-    def download_order_report(self, client, order_id, startDate, endDate):
+    def download_order_report(self, client, order_id, start_date, end_date):
         # Initialize appropriate service.
         line_item_service = client.GetService('LineItemService', version='v201908')
         # Initialize a DataDownloader.
@@ -102,8 +110,8 @@ class AdManager():
                 'dimensionAttributes': ['LINE_ITEM_START_DATE_TIME','LINE_ITEM_END_DATE_TIME','ORDER_TRAFFICKER'],
                 'statement': statement.ToStatement(),
                 'columns': ['AD_SERVER_IMPRESSIONS','AD_SERVER_CLICKS','AD_SERVER_CTR'],
-                'startDate': startDate,
-                'endDate': endDate,
+                'startDate': start_date,
+                'endDate': end_date,
                 'customFieldIds': list(custom_field_ids)
             }
         }
@@ -119,7 +127,7 @@ class AdManager():
         # Change to your preferred export format.
         export_format = 'CSV_DUMP'
 
-        report_file = tempfile.NamedTemporaryFile(suffix='.csv.gz', mode='wb', delete=False)
+        report_file = tempfile.NamedTemporaryFile(suffix='.csv.gz', mode='wb', delete = False)
         print(report_file.name)
         # Download report data.
         report_downloader.DownloadReportToFile(
@@ -132,6 +140,11 @@ class AdManager():
 
         return report_file.name
 
-    def read_pandas_csv(self, report_file):
-        report = pandas.read_csv(report_file)
-        print(report)
+    def advertisement_report(self, report_file):
+        # 訂單成效
+        report = pandas.read_csv(str(report_file), compression='gzip')
+        report['Dimension.LINE_ITEM_NAME'] = report['Dimension.LINE_ITEM_NAME'].apply(lambda x:str(x).replace("  "," ")) 
+        report["MONTH"], report["PLACEMENT"], report["PERIOD"] = report['Dimension.LINE_ITEM_NAME'].str.split(" ", 2).str
+        advertisement_report = report[["PLACEMENT","Dimension.DATE","Column.AD_SERVER_IMPRESSIONS", "Column.AD_SERVER_CLICKS", "Column.AD_SERVER_CTR"]]
+
+        return advertisement_report
