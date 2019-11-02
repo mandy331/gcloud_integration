@@ -9,6 +9,7 @@ from os import environ as env
 from pprint import pprint
 from googleapiclient import discovery
 import pandas
+import datetime
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly','https://www.googleapis.com/auth/drive','https://www.googleapis.com/auth/spreadsheets']
@@ -72,17 +73,20 @@ class GoogleSheets:
 
         if 'spreadsheet_name' not in params:
             return None
-            
+        
         read_template = self.get_template_values(params["template_spreadsheet_id"])
         read_palcementmap = self.get_placementmap_values(params['placementmap_spreadsheet_id'])
         merge_template_placementmap = self.merge_template_placementmap(read_template, read_palcementmap)
-
         create_spreadsheet_id = self.create_spreadsheet(params['spreadsheet_name'])
-        sheet_id = self.copy_template_to_sheets(params["template_spreadsheet_id"], params["template_sheet_id"], create_spreadsheet_id)
+
+        campaign, campaign_numbers = self.count_campaign(self.report)
+
+        for i in range(campaign_numbers):
+            sheet_id = self.copy_template_to_sheets(params["template_spreadsheet_id"], params["template_sheet_id"], create_spreadsheet_id)
+            self.rename_sheet(create_spreadsheet_id, sheet_id, campaign[i])   
+            update_data = self.merge_report_data(merge_template_placementmap, self.report, campaign[i]) 
+            self.update_values(create_spreadsheet_id, update_data)
         self.delete_first_sheets(create_spreadsheet_id)
-        self.rename_sheet(create_spreadsheet_id, sheet_id)
-        update_data = self.merge_report_data(merge_template_placementmap,self.report)
-        self.update_values(create_spreadsheet_id, update_data)
         
     def get_template_values(self, template_spreadsheet_id):
         
@@ -223,7 +227,7 @@ class GoogleSheets:
         # TODO: Change code below to process the `response` dict:
         pprint(response)
 
-    def rename_sheet(self, spreadsheet_id, sheet_id):
+    def rename_sheet(self, spreadsheet_id, sheet_id, campaign_name):
 
         spreadsheet_id = spreadsheet_id # TODO: Update placeholder value.
 
@@ -236,7 +240,7 @@ class GoogleSheets:
                 "updateSheetProperties": {
                     "properties": {
                         "sheetId": sheet_id,
-                        "title": "成效報表",
+                        "title": campaign_name,
                     },
                     "fields": "title"
                     }
@@ -250,18 +254,74 @@ class GoogleSheets:
         # TODO: Change code below to process the `response` dict:
         pprint(response)
 
-    def merge_report_data(self, merge_template_placementmap, advertisement_report):
-        # 走期
-        period = advertisement_report[["Dimension.DATE"]]
-        period = period.drop_duplicates(inplace=False).sort_values(by = "Dimension.DATE").reset_index(drop = True)
-        period["Index"] = [i+8 for i in range(len(period))] # 從第八行開始填入Imps.clicks.CTR
-        print(period)
+    def merge_report_data(self, merge_template_placementmap, advertisement_report, compaign_name):
+        
+        # 篩選不同的報表
+        advertisement_report = advertisement_report[advertisement_report["CAMPAIGN"] == compaign_name]
 
-        # 合併 走期、版位表、成效報表
+        # 算最早日期
+        earliest_day = pandas.to_datetime(advertisement_report["DimensionAttribute.LINE_ITEM_START_DATE_TIME"].min())
+        earliest_day = str(earliest_day.year)+ "/" + str(earliest_day.month) + "/" + str(earliest_day.day)
+        earliest_day = datetime.datetime.strptime(earliest_day, '%Y/%m/%d')
+        now = datetime.datetime.now()
+        days = (now - earliest_day).days
+
+        # 轉換日期格式
+        def date_process(df):
+            df = pandas.to_datetime(df)
+            processed_date = str(df.month) + "/" + str(df.day)
+            return processed_date
+
+        advertisement_report['Dimension.DATE'] = advertisement_report['Dimension.DATE'].apply(date_process,1)
+        advertisement_report['DimensionAttribute.LINE_ITEM_START_DATE_TIME'] = advertisement_report['DimensionAttribute.LINE_ITEM_START_DATE_TIME'].apply(date_process,1)
+
+        # 合併 版位表、成效報表
         all_data = pandas.merge(advertisement_report, merge_template_placementmap, left_on = "PLACEMENT", right_on = "委刊項對照名稱")
-        all_data = pandas.merge(all_data, period, on = "Dimension.DATE")
-        print(all_data)
+        
+        # 整理走期的數據
+        period_df = pandas.DataFrame(all_data.groupby(['Column1','Column2','Column3'])['DimensionAttribute.LINE_ITEM_START_DATE_TIME'].min().reset_index(drop=False))
 
+        # 將數據轉為可放入googlesheets的格式
+        update_data = []
+
+        # 將走期填入googlesheets
+        today = str(now.month) + "/" + str(now.day)
+        for x in range(len(period_df)):
+            period = []
+            period.append([str(period_df["DimensionAttribute.LINE_ITEM_START_DATE_TIME"][x])+ "-" + today]) 
+            data = {
+                    "range": compaign_name + "!" + str(period_df["Column1"][x])+ "6",
+                    'majorDimension': 'ROWS',
+                    "values":period,
+                }
+            update_data.append(data)
+
+        # 日期
+        Date = []
+        day = earliest_day
+        for i in range(days):
+            Date.append(str(day.month) + "/" + str(day.day))
+            day = day + datetime.timedelta(days=1)
+        Date_df = pandas.DataFrame(columns = ["Date", "Index"])
+        Date_df["Date"] = Date
+        Date_df["Index"] = [i+8 for i in range(len(Date_df))] # 從第八行開始填入Imps.clicks.CTR
+        print(Date_df)
+
+        # 將日期填入googlesheets
+        date = []
+        for k in range(len(Date_df)):
+            date.append([str(Date_df["Date"][k])]) 
+        data = {
+                "range": compaign_name + "!" + "A8:A",
+                'majorDimension': 'ROWS',
+                "values":date,
+            }
+        update_data.append(data)
+
+        # 合併 日期、成效報表
+        all_data = pandas.merge(all_data, Date_df, left_on = "Dimension.DATE", right_on = "Date")
+        print(all_data)
+        
         # 整理要放到googlesheets的成效數據，仍為DataFrame格式
         clean_data = pandas.DataFrame(all_data.groupby(['Column1','Column2','Column3','Index'])['Column.AD_SERVER_IMPRESSIONS','Column.AD_SERVER_CLICKS'].sum().reset_index(drop=False))
         clean_data["Column.AD_SERVER_CTR"] = round(clean_data["Column.AD_SERVER_CLICKS"] / clean_data["Column.AD_SERVER_IMPRESSIONS"], 4)
@@ -278,55 +338,26 @@ class GoogleSheets:
         clean_data['range'] = clean_data.apply(Fill_Range,1)
         print(clean_data)
 
-        # 將clean_data轉為可放入googlesheets的格式
+        # 填入成效數據
         unique_range = list(set(clean_data["range"]))
-        update_data = []
         for i in unique_range:
             df = clean_data[clean_data["range"] == i].reset_index(drop = True)
             values = []
             for j in range(len(df)):
                 values.append([int(df["Column.AD_SERVER_IMPRESSIONS"][j]),int(df["Column.AD_SERVER_CLICKS"][j]),int(df["Column.AD_SERVER_CTR"][j])])
-            print(str('成效報表!')+ str(i))
 
             data = {
-                    "range": str('成效報表!') + i,
+                    "range": compaign_name + "!" + i,
                     'majorDimension': 'ROWS',
                     "values":values,
                 }
             update_data.append(data)
-        
-        # 將日期填入googlesheets
-        date = []
-        for i in range(len(period)):
-            date.append([str(period["Dimension.DATE"][i])]) 
-        data = {
-                "range": "成效報表!A8:A",
-                'majorDimension': 'ROWS',
-                "values":date,
-            }
-        update_data.append(data)
-
+    
         return update_data
-           
+    
+    def count_campaign(self, report):
+        campaign = list(set(report["CAMPAIGN"]))
+        campaign_numbers = len(campaign)
+        return campaign, campaign_numbers
+    
     def update_values(self, spreadsheet_id, update_data):
-
-        spreadsheet_id = spreadsheet_id # TODO: Update placeholder value.
-
-        batch_update_values_request_body = {
-            # How the input data should be interpreted.
-            'value_input_option': 'RAW',  # TODO: Update placeholder value.
-            # The new values to apply to the spreadsheet.
-            # append進去
-            'data': update_data,
-
-        }
-
-        request = self.service.spreadsheets().values().batchUpdate(spreadsheetId=spreadsheet_id, body=batch_update_values_request_body)
-        response = request.execute()
-
-        # TODO: Change code below to process the `response` dict:
-        pprint(response)
-
-
-
-
