@@ -15,8 +15,6 @@ class Empty():
 def factory(type, **kwargs):
     if type == 'admanager':
         return AdManager()
-    elif type == 'gmail':
-        return GmailAttachment()
     else:
         return Empty()
 

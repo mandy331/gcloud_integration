@@ -10,6 +10,9 @@ from pprint import pprint
 from googleapiclient import discovery
 import pandas
 import datetime
+import re
+
+from gmail_attachments.gmail import Gmail
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly','https://www.googleapis.com/auth/drive','https://www.googleapis.com/auth/spreadsheets']
@@ -25,6 +28,7 @@ class GoogleSheets:
             self.googlesheets_credentials = env.get("GOOGLESHEETS_CREDENTIALS", "googlesheets_credentials.json")
             self.service = None
             self.report = report
+            self.Gmail = Gmail()
             pass
 
     def cert(self):
@@ -52,7 +56,7 @@ class GoogleSheets:
                 pickle.dump(creds, token)
 
         self.service = discovery.build('sheets', 'v4', credentials=creds)
-
+    
     def run(self, *args, **kwargs):
 
         self.cert()
@@ -74,19 +78,26 @@ class GoogleSheets:
         if 'spreadsheet_name' not in params:
             return None
         
-        read_template = self.get_template_values(params["template_spreadsheet_id"])
-        read_palcementmap = self.get_placementmap_values(params['placementmap_spreadsheet_id'])
-        merge_template_placementmap = self.merge_template_placementmap(read_template, read_palcementmap)
-        create_spreadsheet_id = self.create_spreadsheet(params['spreadsheet_name'])
+        if len(self.report) == 0:
+            return None
+        
+        else:
+            read_template = self.get_template_values(params["template_spreadsheet_id"])
+            read_palcementmap = self.get_placementmap_values(params['placementmap_spreadsheet_id'])
+            merge_template_placementmap = self.merge_template_placementmap(read_template, read_palcementmap)
+            create_spreadsheet_id = self.create_spreadsheet(params['spreadsheet_name'])
 
-        campaign, campaign_numbers = self.count_campaign(self.report)
+            campaign, campaign_numbers = self.count_campaign(self.report)
 
-        for i in range(campaign_numbers):
-            sheet_id = self.copy_template_to_sheets(params["template_spreadsheet_id"], params["template_sheet_id"], create_spreadsheet_id)
-            self.rename_sheet(create_spreadsheet_id, sheet_id, campaign[i])   
-            update_data = self.merge_report_data(merge_template_placementmap, self.report, campaign[i]) 
-            self.update_values(create_spreadsheet_id, update_data)
-        self.delete_first_sheets(create_spreadsheet_id)
+            for i in range(campaign_numbers):
+                sheet_id = self.copy_template_to_sheets(params["template_spreadsheet_id"], params["template_sheet_id"], create_spreadsheet_id)
+                self.rename_sheet(create_spreadsheet_id, sheet_id, campaign[i])   
+                all_data, update_data, earliest_day, now = self.merge_report_data(merge_template_placementmap, self.report, campaign[i]) 
+                self.update_values(create_spreadsheet_id, update_data)
+            self.delete_first_sheets(create_spreadsheet_id)
+            
+            create_spreadsheet_url = self.get_url(create_spreadsheet_id)
+            self.send_mail(params["order_id"], all_data, update_data, earliest_day, now, create_spreadsheet_url)
         
     def get_template_values(self, template_spreadsheet_id):
         
@@ -132,6 +143,7 @@ class GoogleSheets:
 
         return template_df   
 
+
     def get_placementmap_values(self, placement_map_id):
 
         spreadsheet_id = placement_map_id  # TODO: Update placeholder value.
@@ -163,7 +175,6 @@ class GoogleSheets:
         merge_template_placementmap = pandas.merge(template_df, placementmap_df, on = "版位名稱").reset_index(drop = True)
         print(merge_template_placementmap)
         return merge_template_placementmap
-
       
     def create_spreadsheet(self, spreadsheet_name):
         
@@ -180,7 +191,6 @@ class GoogleSheets:
         
         return spreadsheet_id
 
-        pprint(response["spreadsheetId"])
 
     def copy_template_to_sheets(self, template_spreadsheet_id, template_sheet_id, create_spreadsheet_id):
         
@@ -259,7 +269,7 @@ class GoogleSheets:
         # 篩選不同的報表
         advertisement_report = advertisement_report[advertisement_report["CAMPAIGN"] == compaign_name]
 
-        # 算最早日期
+        # 算委刊項中最早和最晚日期
         earliest_day = pandas.to_datetime(advertisement_report["DimensionAttribute.LINE_ITEM_START_DATE_TIME"].min())
         earliest_day = str(earliest_day.year)+ "/" + str(earliest_day.month) + "/" + str(earliest_day.day)
         earliest_day = datetime.datetime.strptime(earliest_day, '%Y/%m/%d')
@@ -353,7 +363,7 @@ class GoogleSheets:
                 }
             update_data.append(data)
     
-        return update_data
+        return all_data, update_data, earliest_day, now
     
     def count_campaign(self, report):
         campaign = list(set(report["CAMPAIGN"]))
@@ -361,3 +371,98 @@ class GoogleSheets:
         return campaign, campaign_numbers
     
     def update_values(self, spreadsheet_id, update_data):
+
+        spreadsheet_id = spreadsheet_id # TODO: Update placeholder value.
+
+        batch_update_values_request_body = {
+            # How the input data should be interpreted.
+            'value_input_option': 'RAW',  # TODO: Update placeholder value.
+            # The new values to apply to the spreadsheet.
+            # append進去
+            'data': update_data,
+
+        }
+
+        request = self.service.spreadsheets().values().batchUpdate(spreadsheetId=spreadsheet_id, body=batch_update_values_request_body)
+        response = request.execute()
+
+        # TODO: Change code below to process the `response` dict:
+        pprint(response)
+
+    def get_url(self, spreadsheet_id):
+        spreadsheet_id = spreadsheet_id  # TODO: Update placeholder value.
+
+        # The ranges to retrieve from the spreadsheet.
+        ranges = []  # TODO: Update placeholder value.
+
+        # True if grid data should be returned.
+        # This parameter is ignored if a field mask was set in the request.
+        include_grid_data = False  # TODO: Update placeholder value.
+
+        request = self.service.spreadsheets().get(spreadsheetId=spreadsheet_id, ranges=ranges, includeGridData=include_grid_data)
+        response = request.execute()
+
+        # TODO: Change code below to process the `response` dict:
+        pprint(response.get("spreadsheetUrl"))
+        spreadsheet_url = response.get("spreadsheetUrl")
+        return spreadsheet_url
+
+    def send_mail(self, order_id, all_data, update_data, earliest_day, now, spreadsheet_url):
+
+        # 產出狀態
+        condition = "成功"
+        
+        # 客戶名稱
+        customer_name = str(all_data["Dimension.ORDER_NAME"][0])
+        
+        # 客戶ID
+        customer_id = str(order_id)
+
+        # 報表產生時間
+        period_now = now.strftime('%Y/%m/%d %H:%M') 
+
+        # 報表抓取數據時間區間    
+        period_start = earliest_day.strftime('%Y/%m/%d %H:%M')        
+        period_time = period_start + " - " + period_now
+        
+        # 報表連結
+        spreadsheet_url = str(spreadsheet_url)
+
+        # email格式
+        period_now_subject_format = str(now.year) + str(now.month) + str(now.day)
+        email_subject = str("[成效報表]" + customer_name + "_" + period_now_subject_format + "_" + "更新" + condition + "測試")
+        
+        # 負責人姓名和負責人信箱
+        trafficker = all_data["DimensionAttribute.ORDER_TRAFFICKER"]
+        pattern = r"(.*)(\s)[(](.*)[)]"
+        trafficker_name, email = [], []
+        for person in trafficker:
+            result = re.findall(pattern, person)
+            trafficker_name.append(result[0][0])
+            email.append(result[0][2])
+        
+        tra = zip(trafficker_name, email)
+        tra_df = pandas.DataFrame(tra, columns = ["負責人","Email"]).drop_duplicates()
+
+        for i in range(len(tra_df)):
+            trafficker_name = str("閔慈")
+            trafficker_email = str("mhuang98331@gmail.com")
+            #trafficker_name = str(tra_df["負責人"][i])
+            #trafficker_email = str(tra_df["Email"][i])
+            email_text_body = str("Dear" + trafficker_name + ":\n\n" + "    以下為" + customer_name+ "的成效報表資訊：\n\n" + "    產出狀態:" + condition + "\n" + "    客戶ID:" + customer_id + "\n" + "    報表產生時間:" + period_now + "\n"+ "    報表抓取數據時間區間:" + period_time + "\n"+ "    報表連結:" + spreadsheet_url + "\n\n" + "Best Regards,\nCW Robot")
+            self.Gmail.run(trafficker_email, email_subject, email_text_body)
+            
+        #"Dear" + trafficker_name + ":\n\n" 
+        #+ "    以下為" + customer_name+ "的成效報表資訊：\n\n" 
+        #+ "    產出狀態:" + condition + "\n" 
+        #+ "    客戶ID:" + customer_id + "\n" 
+        #+ "    報表產生時間:" + period_now + "\n"
+        #+ "    報表抓取數據時間區間:" + period_time + "\n"
+        #+ "    報表連結:" + spreadsheet_url + "\n\n"
+        #+ "Best Regards,\n" + "CW Robot")
+
+        
+            
+
+
+            

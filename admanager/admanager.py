@@ -169,7 +169,7 @@ class AdManager():
                 campaign.append(result[0][9])
         report["PLACEMENT"], report["CAMPAIGN"] = placement, campaign
 
-        advertisement_report = report[["PLACEMENT", "CAMPAIGN", "Dimension.DATE", "DimensionAttribute.LINE_ITEM_START_DATE_TIME",
-                                       "Column.AD_SERVER_IMPRESSIONS", "Column.AD_SERVER_CLICKS", "Column.AD_SERVER_CTR"]]
+        advertisement_report = report[["PLACEMENT", "CAMPAIGN", "Dimension.ORDER_NAME", "Dimension.DATE", "DimensionAttribute.LINE_ITEM_START_DATE_TIME",
+                                       "Column.AD_SERVER_IMPRESSIONS", "Column.AD_SERVER_CLICKS", "Column.AD_SERVER_CTR","DimensionAttribute.ORDER_TRAFFICKER"]]
 
         return advertisement_report
