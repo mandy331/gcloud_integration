@@ -11,7 +11,7 @@ gmail==0.6.3
 google-api-python-client==1.7.11
 google-auth==1.6.3
 google-auth-httplib2==0.0.3
-google-auth-oauthlib==0.4.0
+google-auth-oauthlib==0.4.1
 googleads==21.0.0
 httplib2==0.13.1
 idna==2.8
@@ -20,11 +20,14 @@ isort==4.3.21
 lazy-object-proxy==1.4.2
 lxml==4.4.1
 mccabe==0.6.1
+numpy==1.17.2
 oauthlib==3.1.0
+pandas==0.25.1
 pyasn1==0.4.7
 pyasn1-modules==0.2.6
 pycodestyle==2.5.0
 pylint==2.4.1
+python-dateutil==2.8.0
 python-dotenv==0.10.3
 pytz==2019.2
 PyYAML==5.1.2
