@@ -4,5 +4,11 @@
     "template_spreadsheet_id": "14lFmZT_MCqDtFKuC_V82LCkw6cfpMAJUT2_9xou5UOk", 
     "template_sheet_id": 1633998808, 
     "placementmap_spreadsheet_id": "1DlVWlbp1wVVtmQk_HZdBWLc5YsCOAeAGi60Mp44Vq8M",
-    "spreadsheet_name":"成效報表4"
+    "spreadsheet_name":"成效報表4",
+    "trafficker_email":[
+        {
+            "name":"閔慈",
+            "email":"mhuang98331@gmail.com"
+            }
+        ]
 }
