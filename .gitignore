@@ -3,4 +3,5 @@ __pycache__
 attachments/*
 cert/*
 venv
-.DS_Store
+.DS_Storesendgrid.env
+args.json
