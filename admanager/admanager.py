@@ -172,7 +172,7 @@ class AdManager():
         # 轉換Dimension.DATE格式
         report["Dimension.DATE"] = pandas.to_datetime(report["Dimension.DATE"])
 
-        advertisement_report = report[["Dimension.ORDER_NAME", "Dimension.DATE", "版位名稱", "Campaign",
+        new_report = report[["Dimension.ORDER_NAME", "Dimension.DATE", "版位名稱", "Campaign",
                                        "Column.AD_SERVER_IMPRESSIONS", "Column.AD_SERVER_CLICKS", "Column.AD_SERVER_CTR","DimensionAttribute.ORDER_TRAFFICKER"]]
         
-        return advertisement_report
+        return new_report
