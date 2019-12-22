@@ -5,6 +5,7 @@ import sys
 import tempfile
 from os import environ as env
 import re
+import json
 
 import pandas
 from googleads import ad_manager, oauth2
@@ -44,12 +45,12 @@ class AdManager():
             today = datetime.date.today()
             end_date = today + datetime.timedelta(6 - today.weekday())
             start_date = end_date - datetime.timedelta(days=6)
-
+        
         filename = self.download_order_report(
             self.cert(), params['order_id'], start_date, end_date)
 
-        advertisement_report = self.advertisement_report(filename)
-        googlesheets = GoogleSheets(advertisement_report)
+        report = self.advertisement_report(filename)
+        googlesheets = GoogleSheets(report, end_date)
         googlesheets.run(params)
 
     def print_all_orders(self, ad_manager_client):
@@ -117,8 +118,8 @@ class AdManager():
         # Create report job.
         report_job = {
             'reportQuery': {
-                'dimensions': ['LINE_ITEM_NAME', 'DATE', 'ORDER_NAME'],
-                'dimensionAttributes': ['LINE_ITEM_START_DATE_TIME', 'LINE_ITEM_END_DATE_TIME', 'ORDER_TRAFFICKER'],
+                'dimensions': ['LINE_ITEM_NAME', 'DATE', 'ORDER_NAME', 'CREATIVE_SIZE','AD_UNIT_NAME'],
+                'dimensionAttributes': ['ORDER_TRAFFICKER'],
                 'statement': statement.ToStatement(),
                 'columns': ['AD_SERVER_IMPRESSIONS', 'AD_SERVER_CLICKS', 'AD_SERVER_CTR'],
                 'startDate': start_date,
@@ -126,8 +127,6 @@ class AdManager():
                 'customFieldIds': list(custom_field_ids)
             }
         }
-
-        print(report_job)
 
         try:
             # Run the report and wait for it to finish.
@@ -157,19 +156,23 @@ class AdManager():
 
         # 正則式 讀取版位、活動
         ITEM = report["Dimension.LINE_ITEM_NAME"]
-        pattern = r"([0-9]{6})(\s?)(.*)(|\(\w*\))(\s)([a-zA-Z0-9/]*-[a-zA-Z0-9/]*)((\s?)(\((\w*)\)))?"
-        placement, campaign = [], []
+        pattern = r"(([[])(.*)([]])|.*)(.*)"
+        campaign = []
         for text in ITEM:
-            result = re.findall(pattern, text)
-            pal = re.sub(r"^\s+|\s+$", "", result[0][2])
-            placement.append(pal)
-            if result[0][9] == "":
-                campaign.append("成效報表")
+            if text[0] == "[":
+                result = re.findall(pattern, text)
+                campaign.append(result[0][2])
             else:
-                campaign.append(result[0][9])
-        report["PLACEMENT"], report["CAMPAIGN"] = placement, campaign
+                campaign.append("成效報表")
+        report["Campaign"] = campaign
 
-        advertisement_report = report[["PLACEMENT", "CAMPAIGN", "Dimension.ORDER_NAME", "Dimension.DATE", "DimensionAttribute.LINE_ITEM_START_DATE_TIME",
+        # 版位名稱
+        report["版位名稱"] =  report["Dimension.AD_UNIT_NAME"] + "\n" + report["Dimension.CREATIVE_SIZE"]
+        
+        # 轉換Dimension.DATE格式
+        report["Dimension.DATE"] = pandas.to_datetime(report["Dimension.DATE"])
+
+        new_report = report[["Dimension.ORDER_NAME", "Dimension.DATE", "版位名稱", "Campaign",
                                        "Column.AD_SERVER_IMPRESSIONS", "Column.AD_SERVER_CLICKS", "Column.AD_SERVER_CTR","DimensionAttribute.ORDER_TRAFFICKER"]]
-
-        return advertisement_report
+        
+        return new_report
