@@ -20,18 +20,12 @@ from gmail_attachments.sendgrid_email import sendgridMail
 # If modifying these scopes, delete the file token.pickle.
 SHEETS_SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly','https://www.googleapis.com/auth/spreadsheets']
 DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive','https://www.googleapis.com/auth/drive.file']
-# The ID and range of a sample spreadsheet.
-# SAMPLE_SPREADSHEET_ID = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms'
-# SAMPLE_RANGE_NAME = 'Class Data!A2:E'
 
 class GoogleSheets:
 
     def __init__(self, report, end_date):
             self.key = env.get("KEY","cw-web-prod-ad-manager.json")
             self.folder = env.get("SHARE_FOLDER")
-            self.placementmap_spreadsheet_id = env.get("placementmap_spreadsheet_id")
-            self.template_spreadsheet_id = env.get("template_spreadsheet_id")
-            self.template_sheet_id = env.get("template_sheet_id")
             
             self.service = None
             self.sendgridMail = sendgridMail()
@@ -39,6 +33,8 @@ class GoogleSheets:
             self.report = report
             self.end_date = end_date
 
+            self.template_spreadsheet_id = env.get("template_spreadsheet_id")
+            self.template_sheet_id = env.get("template_sheet_id")
             self.start_row = 8
             self.default_template_total_row = 299
             self.column_df = self.default_template_sheet_column()
@@ -120,8 +116,6 @@ class GoogleSheets:
         
         return spreadsheet_id
     
-
-
     def copy_template_to_sheets(self, template_spreadsheet_id, template_sheet_id, create_spreadsheet_id):
         
         spreadsheet_id = template_spreadsheet_id # TODO: Update placeholder value.
@@ -309,7 +303,6 @@ class GoogleSheets:
         # 篩選目前的月份
         cur_month = early_day.month + k
 
-
         # 整理日期數據
         Date, Date_Format = [], []
         day = early_day
@@ -339,7 +332,7 @@ class GoogleSheets:
         update_data2 = []
         
         # 整理填入數據
-        clean_data = pandas.DataFrame(all_data.groupby(['Column1','Column2','Column3','Index'])['Column.AD_SERVER_IMPRESSIONS','Column.AD_SERVER_CLICKS'].sum().reset_index(drop=False))
+        clean_data = pandas.DataFrame(all_data.groupby(['Column1','Column2','Column3','Index'])['Column.AD_SERVER_IMPRESSIONS', 'Column.AD_SERVER_CLICKS'].sum().reset_index(drop=False))
         clean_data["Column.AD_SERVER_CTR"] = round(clean_data["Column.AD_SERVER_CLICKS"] / clean_data["Column.AD_SERVER_IMPRESSIONS"], 4)
         for j in range(len(clean_data)):
             values = []
@@ -350,7 +343,6 @@ class GoogleSheets:
                     "values":values,
                 }
             update_data2.append(data)
-        
         
         # 整理Total三欄數據
         unique_column = list(set(clean_data["Column1"]))
@@ -376,7 +368,7 @@ class GoogleSheets:
             }
         update_data2.append(data)
 
-      
+        
         return update_data2, total_start_index, last_row_index
   
     def update_values(self, spreadsheet_id, update_data):
@@ -547,8 +539,9 @@ class GoogleSheets:
         pattern = r"(.*)(\s)[(](.*)[)]"
         for person in trafficker:
             result = re.findall(pattern, person)
-            trafficker_name.append(result[0][0])
-            email.append(result[0][2])
+            if result[0][0] not in trafficker_name:
+                trafficker_name.append(result[0][0])
+                email.append(result[0][2])
         
         tra = zip(trafficker_name, email)
         tra_df = pandas.DataFrame(tra, columns = ["負責人","Email"]).drop_duplicates().reset_index(drop=True)

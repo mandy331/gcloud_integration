@@ -6,3 +6,4 @@ venv
 .DS_Storesendgrid.env
 args.json
 .env
+sendgrid.env
