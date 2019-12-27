@@ -9,6 +9,7 @@ import json
 
 import pandas
 from googleads import ad_manager, oauth2
+from googleads import errors
 
 from dotenv import load_dotenv
 from googlesheets.googlesheets import GoogleSheets
@@ -76,7 +77,7 @@ class AdManager():
             else:
                 break
 
-        print('\nNumber of results found: %s' % response['totalResultSetSize'])
+        #print('\nNumber of results found: %s' % response['totalResultSetSize'])
 
     def download_order_report(self, client, order_id, start_date, end_date):
         # Initialize appropriate service.
@@ -118,10 +119,10 @@ class AdManager():
         # Create report job.
         report_job = {
             'reportQuery': {
-                'dimensions': ['LINE_ITEM_NAME', 'DATE', 'ORDER_NAME', 'CREATIVE_SIZE','AD_UNIT_NAME'],
+                'dimensions': ['LINE_ITEM_NAME', 'DATE', 'ORDER_NAME'],
                 'dimensionAttributes': ['ORDER_TRAFFICKER'],
                 'statement': statement.ToStatement(),
-                'columns': ['AD_SERVER_IMPRESSIONS', 'AD_SERVER_CLICKS', 'AD_SERVER_CTR'],
+                'columns': ['AD_SERVER_IMPRESSIONS', 'AD_SERVER_CLICKS'],
                 'startDate': start_date,
                 'endDate': end_date,
                 'customFieldIds': list(custom_field_ids)
@@ -150,29 +151,30 @@ class AdManager():
 
         return report_file.name
 
-    def advertisement_report(self, report_file):
+    def advertisement_report(self, report_file_name):
         # 讀取報表
-        report = pandas.read_csv(str(report_file), compression='gzip')
+        report = pandas.read_csv(str(report_file_name), compression='gzip')
 
         # 正則式 讀取版位、活動
         ITEM = report["Dimension.LINE_ITEM_NAME"]
         pattern = r"(([[])(.*)([]])|.*)(.*)"
-        campaign = []
+        advertisement, campaign = [], []
         for text in ITEM:
             if text[0] == "[":
                 result = re.findall(pattern, text)
                 campaign.append(result[0][2])
+                advertisement.append(result[0][4].strip())
+
             else:
                 campaign.append("成效報表")
-        report["Campaign"] = campaign
-
-        # 版位名稱
-        report["版位名稱"] =  report["Dimension.AD_UNIT_NAME"] + "\n" + report["Dimension.CREATIVE_SIZE"]
+                advertisement.append(text)
+                
+        report["版位名稱"], report["Campaign"] = advertisement, campaign
         
         # 轉換Dimension.DATE格式
         report["Dimension.DATE"] = pandas.to_datetime(report["Dimension.DATE"])
 
         new_report = report[["Dimension.ORDER_NAME", "Dimension.DATE", "版位名稱", "Campaign",
-                                       "Column.AD_SERVER_IMPRESSIONS", "Column.AD_SERVER_CLICKS", "Column.AD_SERVER_CTR","DimensionAttribute.ORDER_TRAFFICKER"]]
+                                       "Column.AD_SERVER_IMPRESSIONS", "Column.AD_SERVER_CLICKS","DimensionAttribute.ORDER_TRAFFICKER"]]
         
         return new_report
