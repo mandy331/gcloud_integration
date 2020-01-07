@@ -13,6 +13,7 @@ import time
 from pprint import pprint
 import pandas
 import datetime
+from dateutil.relativedelta import relativedelta
 import re
 
 from gmail_attachments.sendgrid_email import sendgridMail
@@ -37,7 +38,6 @@ class GoogleSheets:
             self.template_sheet_id = env.get("template_sheet_id")
             self.start_row = 8
             self.default_template_total_row = 299
-            self.column_df = self.default_template_sheet_column()
             pass
    
     def cert(self, SCOPES):
@@ -63,6 +63,7 @@ class GoogleSheets:
         else:
             campaign, campaign_count = self.count_campaign(self.report)
             create_spreadsheet_id = self.create_spreadsheet(self.report, self.end_date)
+            column_df = self.default_template_sheet_column()
 
             for i in range(campaign_count):
 
@@ -74,18 +75,22 @@ class GoogleSheets:
                 campaign_report = self.get_campaign_report(self.report, campaign[i])
                 
                 # 整理每個活動的報表的日期
-                early_day, days, months = self.campaign_month_count(campaign_report)
+                month_list, early_day, days, months = self.campaign_month_count(campaign_report)
 
                 # 填入 版位名稱、走期
-                placement_index_df, last_column_index, update_data1 = self.fill_campaign_data(self.column_df, campaign_report, early_day, days)
+                placement_index_df, last_column_index, update_data1 = self.fill_campaign_data(column_df, campaign_report, early_day, days)
                 self.update_values(create_spreadsheet_id, update_data1)
                 
                 # 填入日期、數據、總和
                 for k in range(months):
-                    update_data2, total_start_index, last_row_index = self.fill_month_campaign_data(self.column_df, placement_index_df, campaign_report, early_day, k, days, self.start_row) 
-                    self.copy_total_three_rows(create_spreadsheet_id, sheet_id, total_start_index)
-                    self.update_values(create_spreadsheet_id, update_data2)    
-                    self.default_template_total_row += 3          
+                    cur_month = (early_day + relativedelta(months=k)).month
+                    if cur_month not in month_list:
+                        pass
+                    else: 
+                        update_data2, total_start_index, last_row_index = self.fill_month_campaign_data(column_df, placement_index_df, campaign_report, cur_month, early_day, days, self.start_row) 
+                        self.copy_total_three_rows(create_spreadsheet_id, sheet_id, total_start_index)
+                        self.update_values(create_spreadsheet_id, update_data2)    
+                        self.default_template_total_row += 3          
                 self.delete_empty_cols_rows(create_spreadsheet_id, sheet_id, last_column_index, last_row_index)    
                 self.start_row = 8
 
@@ -95,7 +100,7 @@ class GoogleSheets:
             # 產出的報表放進google共用雲端資料夾
             self.cert(DRIVE_SCOPES)
             self.move_to_folder(self.folder, create_spreadsheet_id)
-            self.send_successful_mail(params["order_id"], self.report, create_spreadsheet_url, params["trafficker_email"])
+            #self.send_successful_mail(params["order_id"], self.report, create_spreadsheet_url, params["trafficker_email"])
       
     def create_spreadsheet(self, report, end_date):
         
@@ -190,14 +195,30 @@ class GoogleSheets:
     
     def default_template_sheet_column(self):
         
-        # 配合模板的版位欄位名稱      
-        Column1 = ["B","E","H","K","N","Q","T","W","Z","AC","AF","AI","AL","AO","AR","AU","AX","BA","BD","BG","BJ","BM","BP","BS","BV","BY","CB","CE","CH","CK","CN","CQ","CT","CW","CZ","DC","DF","DI","DL","DO","DR","DU","DX"]
-        Column2 = ["C","F","I","L","O","R","U","X","AA","AD","AG","AJ","AM","AP","AS","AV","AY","BB","BE","BH","BK","BN","BQ","BT","BW","BZ","CC","CF","CI","CL","CO","CR","CU","CX","DA","DD","DG","DJ","DM","DP","DS","DV","DY"]        
-        Column3 = ["D","G","J","M","P","S","V","Y","AB","AE","AH","AK","AN","AQ","AT","AW","AZ","BC","AF","BI","BL","BO","BR","BU","BX","CA","CD","CG","CJ","CM","CP","CS","CV","CY","DB","DE","DH","DK","DN","DQ","DT","DW","DZ"]   
+        # 配合模板的版位欄位名稱
+        alphabet = [chr(i) for i in range(66,91)]
+        for k in range(26):
+            k = k + 65
+            alphabet = alphabet + [chr(k)+chr(i) for i in range(65,91)]
+        alphabet.append("AAA")
+
+        Column1 = [alphabet[x] for x in range(len(alphabet)) if x%3 ==0]
+        Column2 = [alphabet[x] for x in range(len(alphabet)) if x%3 ==1]
+        Column3 = [alphabet[x] for x in range(len(alphabet)) if x%3 ==2]
+
         column_df = zip(Column1, Column2, Column3)
         column_df = pandas.DataFrame(column_df, columns = ["Column1","Column2","Column3"])
         
         return column_df
+        
+        # 配合模板的版位欄位名稱      
+        # Column1 = ["B","E","H","K","N","Q","T","W","Z","AC","AF","AI","AL","AO","AR","AU","AX","BA","BD","BG","BJ","BM","BP","BS","BV","BY","CB","CE","CH","CK","CN","CQ","CT","CW","CZ","DC","DF","DI","DL","DO","DR","DU","DX"]
+        # Column2 = ["C","F","I","L","O","R","U","X","AA","AD","AG","AJ","AM","AP","AS","AV","AY","BB","BE","BH","BK","BN","BQ","BT","BW","BZ","CC","CF","CI","CL","CO","CR","CU","CX","DA","DD","DG","DJ","DM","DP","DS","DV","DY"]        
+        # Column3 = ["D","G","J","M","P","S","V","Y","AB","AE","AH","AK","AN","AQ","AT","AW","AZ","BC","AF","BI","BL","BO","BR","BU","BX","CA","CD","CG","CJ","CM","CP","CS","CV","CY","DB","DE","DH","DK","DN","DQ","DT","DW","DZ"]   
+        # column_df = zip(Column1, Column2, Column3)
+        # column_df = pandas.DataFrame(column_df, columns = ["Column1","Column2","Column3"])
+        
+        # return column_df
     
     def count_campaign(self, report):
         
@@ -210,18 +231,23 @@ class GoogleSheets:
         
         # 篩選不同的報表
         report = report[report["Campaign"] == compaign_name]
-
         return report
     
     def campaign_month_count(self, campaign_report):
         
         # 算委刊項中最早和最晚日期
+        campaign_report["Month"] = campaign_report['Dimension.DATE'].apply(lambda x:x.month)
+        month_list = list(set(sorted(campaign_report['Month'])))
         early_day = campaign_report["Dimension.DATE"].min()
         last_day = campaign_report["Dimension.DATE"].max()
         days = (last_day - early_day).days
-        months = last_day.month - early_day.month + 1
+        year = last_day.year - early_day.year
+        months = last_day.month - early_day.month
+        if year > 0:
+            months = 12 + months
+        months = months + 1
 
-        return early_day, days, months
+        return month_list, early_day, days, months
 
     def fill_campaign_data(self, column_df, campaign_report, early_day, days):
         
@@ -296,13 +322,11 @@ class GoogleSheets:
                 }
             update_data1.append(data)
         
-        return placement_index_df, last_column_index, update_data1   
+        return placement_index_df, last_column_index, update_data1 
     
-    def fill_month_campaign_data(self, column_df, placement_index_df, campaign_report, early_day, k, days, start_row):
-                
-        # 篩選目前的月份
-        cur_month = early_day.month + k
-
+  
+    def fill_month_campaign_data(self, column_df, placement_index_df, campaign_report, cur_month, early_day, days, start_row):
+        
         # 整理日期數據
         Date, Date_Format = [], []
         day = early_day
@@ -324,9 +348,9 @@ class GoogleSheets:
 
         # 合併 成效報表、版位名稱對照表、日期
         all_data = pandas.merge(campaign_report, Date_df, on = "Dimension.DATE")
-
         # 和版位名稱和版位index合併
         all_data = pandas.merge(all_data, placement_index_df, on = "版位名稱")
+        all_data = all_data.reset_index(drop=True)
 
         # 將數據轉為可放入googlesheets的格式
         update_data2 = []
@@ -368,7 +392,6 @@ class GoogleSheets:
             }
         update_data2.append(data)
 
-        
         return update_data2, total_start_index, last_row_index
   
     def update_values(self, spreadsheet_id, update_data):
