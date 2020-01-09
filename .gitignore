@@ -3,7 +3,7 @@ __pycache__
 attachments/*
 cert/*
 venv
-.DS_Storesendgrid.env
+.DS_Store
 args.json
 .env
 sendgrid.env
