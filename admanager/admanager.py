@@ -48,8 +48,7 @@ class AdManager():
             end_date = check_future(params['end_date'])            
             
         else:
-            today = datetime.date.today()
-            end_date = today + datetime.timedelta(6 - today.weekday())
+            end_date = datetime.date.today() + datetime.timedelta(6 - today.weekday())
             start_date = end_date - datetime.timedelta(days=6)
     
         filename = self.download_order_report(
@@ -157,10 +156,17 @@ class AdManager():
         return report_file.name
 
     def advertisement_report(self, report_file_name):
-        #if report_file_name 
         
-        # 讀取報表
-        report = pandas.read_csv(str(report_file_name), compression='gzip')
+        def check_report_exist(report_file_name):
+            if report_file_name:
+                return True
+            return False
+        
+        if check_report_exist(report_file_name):
+            report = pandas.read_csv(str(report_file_name), compression='gzip')
+            return report
+        else:
+            return 
 
         # 正則式 讀取版位、活動
         ITEM = report["Dimension.LINE_ITEM_NAME"]

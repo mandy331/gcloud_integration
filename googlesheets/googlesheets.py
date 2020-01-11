@@ -209,16 +209,7 @@ class GoogleSheets:
         column_df = zip(Column1, Column2, Column3)
         column_df = pandas.DataFrame(column_df, columns = ["Column1","Column2","Column3"])
         
-        return column_df
-        
-        # 配合模板的版位欄位名稱      
-        # Column1 = ["B","E","H","K","N","Q","T","W","Z","AC","AF","AI","AL","AO","AR","AU","AX","BA","BD","BG","BJ","BM","BP","BS","BV","BY","CB","CE","CH","CK","CN","CQ","CT","CW","CZ","DC","DF","DI","DL","DO","DR","DU","DX"]
-        # Column2 = ["C","F","I","L","O","R","U","X","AA","AD","AG","AJ","AM","AP","AS","AV","AY","BB","BE","BH","BK","BN","BQ","BT","BW","BZ","CC","CF","CI","CL","CO","CR","CU","CX","DA","DD","DG","DJ","DM","DP","DS","DV","DY"]        
-        # Column3 = ["D","G","J","M","P","S","V","Y","AB","AE","AH","AK","AN","AQ","AT","AW","AZ","BC","AF","BI","BL","BO","BR","BU","BX","CA","CD","CG","CJ","CM","CP","CS","CV","CY","DB","DE","DH","DK","DN","DQ","DT","DW","DZ"]   
-        # column_df = zip(Column1, Column2, Column3)
-        # column_df = pandas.DataFrame(column_df, columns = ["Column1","Column2","Column3"])
-        
-        # return column_df
+        return column_df    
     
     def count_campaign(self, report):
         
@@ -241,10 +232,14 @@ class GoogleSheets:
         early_day = campaign_report["Dimension.DATE"].min()
         last_day = campaign_report["Dimension.DATE"].max()
         days = (last_day - early_day).days
-        year = last_day.year - early_day.year
         months = last_day.month - early_day.month
-        if year > 0:
-            months = 12 + months
+        
+        def check_year(early_day, last_day):
+            year = last_day.year - early_day.year
+            if year > 0:
+                months = 12 + months
+            return months
+        
         months = months + 1
 
         return month_list, early_day, days, months
