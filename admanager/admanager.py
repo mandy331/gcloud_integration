@@ -55,7 +55,7 @@ class AdManager():
             self.cert(), params['order_id'], start_date, end_date)
 
         report = self.advertisement_report(filename)
-        googlesheets = GoogleSheets(report, end_date)
+        googlesheets = GoogleSheets(report, start_date, end_date)
         googlesheets.run(params)
     
     def print_all_orders(self, ad_manager_client):
@@ -157,17 +157,9 @@ class AdManager():
 
     def advertisement_report(self, report_file_name):
         
-        def check_report_exist(report_file_name):
-            if report_file_name:
-                return True
-            return False
-        
-        if check_report_exist(report_file_name):
-            report = pandas.read_csv(str(report_file_name), compression='gzip')
-            return report
-        else:
-            return 
-
+        # 讀取檔案
+        report = pandas.read_csv(str(report_file_name), compression='gzip', error_bad_lines=False)
+            
         # 正則式 讀取版位、活動
         ITEM = report["Dimension.LINE_ITEM_NAME"]
         pattern = r"(([[])(.*)([]])|.*)(.*)"

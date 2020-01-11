@@ -24,7 +24,7 @@ DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive','https://www.googleapis.
 
 class GoogleSheets:
 
-    def __init__(self, report, end_date):
+    def __init__(self, report, start_date, end_date):
             self.key = env.get("KEY","cw-web-prod-ad-manager.json")
             self.folder = env.get("SHARE_FOLDER")
             
@@ -33,6 +33,7 @@ class GoogleSheets:
             
             self.report = report
             self.end_date = end_date
+            self.start_date = start_date
 
             self.template_spreadsheet_id = env.get("template_spreadsheet_id")
             self.template_sheet_id = env.get("template_sheet_id")
@@ -62,7 +63,7 @@ class GoogleSheets:
         
         else:
             campaign, campaign_count = self.count_campaign(self.report)
-            create_spreadsheet_id = self.create_spreadsheet(self.report, self.end_date)
+            create_spreadsheet_id = self.create_spreadsheet(self.report, self.start_date, self.end_date)
             column_df = self.default_template_sheet_column()
 
             for i in range(campaign_count):
@@ -102,11 +103,13 @@ class GoogleSheets:
             self.move_to_folder(self.folder, create_spreadsheet_id)
             #self.send_successful_mail(params["order_id"], self.report, create_spreadsheet_url, params["trafficker_email"])
       
-    def create_spreadsheet(self, report, end_date):
+    def create_spreadsheet(self, report, start_date, end_date):
         
         format_end_date = end_date.strftime("%Y%m%d")
+        format_start_date = start_date.strftime("%Y%m%d")
+        now = datetime.date.today().strftime("%Y%m%d")
 
-        spreadsheet_name = format_end_date + '_' + str(report["Dimension.ORDER_NAME"][0]) + '_成效' 
+        spreadsheet_name = now + "_" + str(report["Dimension.ORDER_NAME"][0]) + "_" + format_start_date + "-" + format_end_date + '_成效' 
 
         spreadsheet = {
             'properties': {
