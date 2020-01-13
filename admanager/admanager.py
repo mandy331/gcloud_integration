@@ -55,8 +55,10 @@ class AdManager():
             self.cert(), params['order_id'], start_date, end_date)
 
         report = self.advertisement_report(filename)
-        googlesheets = GoogleSheets(report, start_date, end_date)
-        googlesheets.run(params)
+        
+        return report, start_date, end_date
+        #googlesheets = GoogleSheets(report, start_date, end_date)
+        #googlesheets.run(params)
     
     def print_all_orders(self, ad_manager_client):
 
@@ -157,29 +159,39 @@ class AdManager():
 
     def advertisement_report(self, report_file_name):
         
+        def empty_report(report):
+            if len(report) == 0:
+                return True
+            else:
+                return False
+            
         # 讀取檔案
         report = pandas.read_csv(str(report_file_name), compression='gzip', error_bad_lines=False)
-            
-        # 正則式 讀取版位、活動
-        ITEM = report["Dimension.LINE_ITEM_NAME"]
-        pattern = r"(([[])(.*)([]])|.*)(.*)"
-        advertisement, campaign = [], []
-        for text in ITEM:
-            if text[0] == "[":
-                result = re.findall(pattern, text)
-                campaign.append(result[0][2])
-                advertisement.append(result[0][4].strip())
-            else:
-                campaign.append("成效報表")
-                advertisement.append(text)
-
-        report["版位名稱"], report["Campaign"] = advertisement, campaign
         
-        # 轉換Dimension.DATE格式
-        report["Dimension.DATE"] = pandas.to_datetime(report["Dimension.DATE"])
-        report["Dimension.DATE"] = report["Dimension.DATE"].apply(lambda x: x.date())
+        if empty_report(report):
+            return report
+        
+        else: 
+            # 正則式 讀取版位、活動
+            ITEM = report["Dimension.LINE_ITEM_NAME"]
+            pattern = r"(([[])(.*)([]])|.*)(.*)"
+            advertisement, campaign = [], []
+            for text in ITEM:
+                if text[0] == "[":
+                    result = re.findall(pattern, text)
+                    campaign.append(result[0][2])
+                    advertisement.append(result[0][4].strip())
+                else:
+                    campaign.append("成效報表")
+                    advertisement.append(text)
 
-        new_report = report[["Dimension.ORDER_NAME", "Dimension.DATE", "版位名稱", "Campaign",
-                             "Column.AD_SERVER_IMPRESSIONS", "Column.AD_SERVER_CLICKS", "DimensionAttribute.ORDER_TRAFFICKER"]]
+            report["版位名稱"], report["Campaign"] = advertisement, campaign
+            
+            # 轉換Dimension.DATE格式
+            report["Dimension.DATE"] = pandas.to_datetime(report["Dimension.DATE"])
+            report["Dimension.DATE"] = report["Dimension.DATE"].apply(lambda x: x.date())
 
-        return new_report
+            new_report = report[["Dimension.ORDER_NAME", "Dimension.DATE", "版位名稱", "Campaign",
+                                "Column.AD_SERVER_IMPRESSIONS", "Column.AD_SERVER_CLICKS", "DimensionAttribute.ORDER_TRAFFICKER"]]
+
+            return new_report

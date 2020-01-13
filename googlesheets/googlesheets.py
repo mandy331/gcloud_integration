@@ -59,7 +59,9 @@ class GoogleSheets:
         params = args[0]
         
         if len(self.report) == 0:
-            self.send_fail_mail(params["order_id"], params["trafficker_email"])
+            spreadsheet_url = None
+            new_trafficker_email = None
+            #self.send_fail_mail(params["order_id"], params["trafficker_email"])
         
         else:
             campaign, campaign_count = self.count_campaign(self.report)
@@ -96,11 +98,14 @@ class GoogleSheets:
                 self.start_row = 8
 
             self.delete_first_sheet(create_spreadsheet_id)
-            create_spreadsheet_url = self.get_url(create_spreadsheet_id)
+            spreadsheet_url = self.get_url(create_spreadsheet_id)
             
             # 產出的報表放進google共用雲端資料夾
             self.cert(DRIVE_SCOPES)
             self.move_to_folder(self.folder, create_spreadsheet_id)
+            new_trafficker_email = self.clean_trafficker_email(self.report, params["trafficker_email"])
+        
+        return spreadsheet_url, new_trafficker_email
             #self.send_successful_mail(params["order_id"], self.report, create_spreadsheet_url, params["trafficker_email"])
       
     def create_spreadsheet(self, report, start_date, end_date):
@@ -598,6 +603,29 @@ class GoogleSheets:
             email = j.get("email")
             email_text_body = "Dear" + trafficker_name + "：" + "<br><br>    產出狀態：" + condition + "<br>    客戶ID：" + customer_id + "<br>    報表產生時間：" + period_now + "<br><br>Best Regards,<br>CW Robot"
             self.sendgridMail.send(email, email_subject, email_text_body)
+    
+    def clean_trafficker_email(self, report, trafficker_email):
+        
+        # 預定要寄給的負責人
+        trafficker_name, email = [], []
+        for j in trafficker_email:
+            trafficker_name.append(j.get("name"))
+            email.append(j.get("email"))
+
+        # 負責人姓名和負責人信箱
+        trafficker = report["DimensionAttribute.ORDER_TRAFFICKER"]
+        pattern = r"(.*)(\s)[(](.*)[)]"
+        for person in trafficker:
+            result = re.findall(pattern, person)
+            if result[0][0] not in trafficker_name:
+                trafficker_name.append(result[0][0])
+                email.append(result[0][2])
+        
+        tra = zip(trafficker_name, email)
+        tra_df = pandas.DataFrame(tra, columns = ["負責人","Email"]).drop_duplicates().reset_index(drop=True)
+
+        return tra_df
+
         
         
 
