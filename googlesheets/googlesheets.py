@@ -309,7 +309,10 @@ class GoogleSheets:
         # 篩選目前的月份
         cur_month = early_day.month + k
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 3676cd9322f5ccfeed127452017734dde64c89d8
         # 整理日期數據
         Date, Date_Format = [], []
         day = early_day
@@ -549,7 +552,7 @@ class GoogleSheets:
             result = re.findall(pattern, person)
             trafficker_name.append(result[0][0])
             email.append(result[0][2])
-        
+
         tra = zip(trafficker_name, email)
         tra_df = pandas.DataFrame(tra, columns = ["負責人","Email"]).drop_duplicates().reset_index(drop=True)
 

@@ -9,6 +9,7 @@ import json
 
 import pandas
 from googleads import ad_manager, oauth2
+from googleads import errors
 
 from dotenv import load_dotenv
 from googlesheets.googlesheets import GoogleSheets
@@ -76,7 +77,7 @@ class AdManager():
             else:
                 break
 
-        print('\nNumber of results found: %s' % response['totalResultSetSize'])
+        #print('\nNumber of results found: %s' % response['totalResultSetSize'])
 
     def download_order_report(self, client, order_id, start_date, end_date):
         # Initialize appropriate service.
