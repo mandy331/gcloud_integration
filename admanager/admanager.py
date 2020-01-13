@@ -57,8 +57,6 @@ class AdManager():
         report = self.advertisement_report(filename)
         
         return report, start_date, end_date
-        #googlesheets = GoogleSheets(report, start_date, end_date)
-        #googlesheets.run(params)
     
     def print_all_orders(self, ad_manager_client):
 
