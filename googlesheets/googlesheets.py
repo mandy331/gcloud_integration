@@ -327,9 +327,8 @@ class GoogleSheets:
         
         return placement_index_df, last_column_index, update_data1 
     
-  
     def fill_month_campaign_data(self, column_df, placement_index_df, campaign_report, cur_month, early_day, days, start_row):
-        
+
         # 整理日期數據
         Date, Date_Format = [], []
         day = early_day
