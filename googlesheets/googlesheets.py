@@ -55,52 +55,46 @@ class GoogleSheets:
 
         params = args[0]
         
-        if len(self.report) == 0:
-            spreadsheet_url = None
-            new_trafficker_email = None
-        
-        else:
-            campaign, campaign_count = self.count_campaign(self.report)
-            create_spreadsheet_id = self.create_spreadsheet(self.report, self.start_date, self.end_date)
-            column_df = self.default_template_sheet_column()
+        campaign, campaign_count = self.count_campaign(self.report)
+        create_spreadsheet_id = self.create_spreadsheet(self.report, self.start_date, self.end_date)
+        column_df = self.default_template_sheet_column()
 
-            for i in range(campaign_count):
-                print(campaign[i])
+        for i in range(campaign_count):
 
-                # 創建sheet
-                sheet_id = self.copy_template_to_sheets(self.template_spreadsheet_id, self.template_sheet_id, create_spreadsheet_id)
-                self.rename_sheet(create_spreadsheet_id, sheet_id, campaign[i])
-                
-                # 每個活動的報表
-                campaign_report = self.get_campaign_report(self.report, campaign[i])
-                
-                # 整理每個活動的報表的日期
-                month_list, early_day, days, months = self.campaign_month_count(campaign_report)
-
-                # 填入 版位名稱、走期
-                placement_index_df, last_column_index, update_data1 = self.fill_campaign_data(column_df, campaign_report, early_day, days)
-                self.update_values(create_spreadsheet_id, update_data1)
-                
-                # 填入日期、數據、總和
-                for k in range(months):
-                    cur_month = (early_day + relativedelta(months=k)).month
-                    if cur_month not in month_list:
-                        pass
-                    else:
-                        update_data2, total_start_index, last_row_index = self.fill_month_campaign_data(column_df, placement_index_df, campaign_report, cur_month, early_day, days, self.start_row) 
-                        self.copy_total_three_rows(create_spreadsheet_id, sheet_id, total_start_index)
-                        self.update_values(create_spreadsheet_id, update_data2)    
-                        self.default_template_total_row += 3          
-                self.delete_empty_cols_rows(create_spreadsheet_id, sheet_id, last_column_index, last_row_index)    
-                self.start_row = 8
-
-            self.delete_first_sheet(create_spreadsheet_id)
-            spreadsheet_url = self.get_url(create_spreadsheet_id)
+            # 創建sheet
+            sheet_id = self.copy_template_to_sheets(self.template_spreadsheet_id, self.template_sheet_id, create_spreadsheet_id)
+            self.rename_sheet(create_spreadsheet_id, sheet_id, campaign[i])
             
-            # 產出的報表放進google共用雲端資料夾
-            self.cert(DRIVE_SCOPES)
-            self.move_to_folder(self.folder, create_spreadsheet_id)
-            new_trafficker_email = self.clean_trafficker_email(self.report, params["trafficker_email"])
+            # 每個活動的報表
+            campaign_report = self.get_campaign_report(self.report, campaign[i])
+            
+            # 整理每個活動的報表的日期
+            month_list, early_day, days, months = self.campaign_month_count(campaign_report)
+
+            # 填入 版位名稱、走期
+            placement_index_df, last_column_index, update_data1 = self.fill_campaign_data(column_df, campaign_report, early_day, days)
+            self.update_values(create_spreadsheet_id, update_data1)
+            
+            # 填入日期、數據、總和
+            for k in range(months):
+                cur_month = (early_day + relativedelta(months=k)).month
+                if cur_month not in month_list:
+                    pass
+                else:
+                    update_data2, total_start_index, last_row_index = self.fill_month_campaign_data(column_df, placement_index_df, campaign_report, cur_month, early_day, days, self.start_row) 
+                    self.copy_total_three_rows(create_spreadsheet_id, sheet_id, total_start_index)
+                    self.update_values(create_spreadsheet_id, update_data2)    
+                    self.default_template_total_row += 3          
+            self.delete_empty_cols_rows(create_spreadsheet_id, sheet_id, last_column_index, last_row_index)    
+            self.start_row = 8
+
+        self.delete_first_sheet(create_spreadsheet_id)
+        spreadsheet_url = self.get_url(create_spreadsheet_id)
+        
+        # 產出的報表放進google共用雲端資料夾
+        self.cert(DRIVE_SCOPES)
+        self.move_to_folder(self.folder, create_spreadsheet_id)
+        new_trafficker_email = self.clean_trafficker_email(self.report, params["trafficker_email"])
         
         return spreadsheet_url, new_trafficker_email
       
@@ -539,7 +533,7 @@ class GoogleSheets:
         pattern = r"(.*)(\s)[(](.*)[)]"
         for person in trafficker:
             result = re.findall(pattern, person)
-            if result[0][0] not in trafficker_name:
+            if result[0][2] not in email:
                 trafficker_name.append(result[0][0])
                 email.append(result[0][2])
         

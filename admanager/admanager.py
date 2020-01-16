@@ -12,7 +12,6 @@ from googleads import ad_manager, oauth2
 from googleads import errors
 
 from dotenv import load_dotenv
-from googlesheets.googlesheets import GoogleSheets
 
 load_dotenv()
 
@@ -57,6 +56,7 @@ class AdManager():
         report = self.advertisement_report(filename)
         
         return report, start_date, end_date
+
     
     def print_all_orders(self, ad_manager_client):
 
@@ -157,28 +157,22 @@ class AdManager():
 
     def advertisement_report(self, report_file_name):
         
-        def empty_report(report):
-            if len(report) == 0:
-                return True
-            else:
-                return False
-            
         # 讀取檔案
         report = pandas.read_csv(str(report_file_name), compression='gzip', error_bad_lines=False)
         
-        if empty_report(report):
+        if report.empty:
             return report
         
         else: 
             # 正則式 讀取版位、活動
             ITEM = report["Dimension.LINE_ITEM_NAME"]
-            pattern = r"(([[])(.*)([]])|.*)(.*)"
+            pattern = r"\[(.*)\](.*)"
             advertisement, campaign = [], []
             for text in ITEM:
                 if text[0] == "[":
                     result = re.findall(pattern, text)
-                    campaign.append(result[0][2])
-                    advertisement.append(result[0][4].strip())
+                    campaign.append(result[0][0])
+                    advertisement.append(result[0][1].strip())
                 else:
                     campaign.append("成效報表")
                     advertisement.append(text)
