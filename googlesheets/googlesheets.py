@@ -16,8 +16,6 @@ import datetime
 from dateutil.relativedelta import relativedelta
 import re
 
-from gmail_attachments.sendgrid_email import sendgridMail
-
 # If modifying these scopes, delete the file token.pickle.
 SHEETS_SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly','https://www.googleapis.com/auth/spreadsheets']
 DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive','https://www.googleapis.com/auth/drive.file']
@@ -29,7 +27,6 @@ class GoogleSheets:
             self.folder = env.get("SHARE_FOLDER")
             
             self.service = None
-            self.sendgridMail = sendgridMail()
             
             self.report = report
             self.end_date = end_date
@@ -61,7 +58,6 @@ class GoogleSheets:
         if len(self.report) == 0:
             spreadsheet_url = None
             new_trafficker_email = None
-            #self.send_fail_mail(params["order_id"], params["trafficker_email"])
         
         else:
             campaign, campaign_count = self.count_campaign(self.report)
@@ -69,6 +65,7 @@ class GoogleSheets:
             column_df = self.default_template_sheet_column()
 
             for i in range(campaign_count):
+                print(campaign[i])
 
                 # 創建sheet
                 sheet_id = self.copy_template_to_sheets(self.template_spreadsheet_id, self.template_sheet_id, create_spreadsheet_id)
@@ -89,7 +86,7 @@ class GoogleSheets:
                     cur_month = (early_day + relativedelta(months=k)).month
                     if cur_month not in month_list:
                         pass
-                    else: 
+                    else:
                         update_data2, total_start_index, last_row_index = self.fill_month_campaign_data(column_df, placement_index_df, campaign_report, cur_month, early_day, days, self.start_row) 
                         self.copy_total_three_rows(create_spreadsheet_id, sheet_id, total_start_index)
                         self.update_values(create_spreadsheet_id, update_data2)    
@@ -106,7 +103,6 @@ class GoogleSheets:
             new_trafficker_email = self.clean_trafficker_email(self.report, params["trafficker_email"])
         
         return spreadsheet_url, new_trafficker_email
-            #self.send_successful_mail(params["order_id"], self.report, create_spreadsheet_url, params["trafficker_email"])
       
     def create_spreadsheet(self, report, start_date, end_date):
         
@@ -114,7 +110,8 @@ class GoogleSheets:
         format_start_date = start_date.strftime("%Y%m%d")
         now = datetime.date.today().strftime("%Y%m%d")
 
-        spreadsheet_name = now + "_" + str(report["Dimension.ORDER_NAME"][0]) + "_" + format_start_date + "-" + format_end_date + '_成效' 
+        spreadsheet_name = "{}_{}_{}-{}_成效"
+        spreadsheet_name = spreadsheet_name.format(now, report["Dimension.ORDER_NAME"][0], format_start_date, format_end_date)
 
         spreadsheet = {
             'properties': {
@@ -245,8 +242,12 @@ class GoogleSheets:
         def check_year(early_day, last_day):
             year = last_day.year - early_day.year
             if year > 0:
-                months = 12 + months
-            return months
+                return True
+            else:
+                return False
+        
+        if check_year(early_day, last_day):
+            months = months + 12
         
         months = months + 1
 
@@ -272,9 +273,11 @@ class GoogleSheets:
             end_day = max(period_list)
             days = (end_day - start_day).days
             if days == 0:
-                period.append(str(start_day.month)+"/"+str(start_day.day))
+                period_str1 = "{}/{}".format(start_day.month, start_day.day)
+                period.append(period_str1)
             elif len(period_list) == days + 1:
-                period.append(str(start_day.month)+"/"+str(start_day.day)+"-"+str(end_day.month)+"/"+str(end_day.day))
+                period_str2 = "{}/{}-{}/{}".format(start_day.month, start_day.day, end_day.month, end_day.day)
+                period.append(period_str2)
             else:
                 many_period = ""
                 first_day = start_day
@@ -284,7 +287,7 @@ class GoogleSheets:
                     current_before_day = current_day - datetime.timedelta(days=1)
                     if current_day in period_list:
                         if current_after_day not in period_list and current_before_day not in period_list:
-                            many_period += str(current_day.month) + "/" + str(current_day.day) + "+"
+                            many_period += "{}/{}+".format(current_day.month, current_day.day)
                             first_day = current_after_day 
                         elif current_before_day not in period_list and current_after_day in period_list:
                             first_day = current_day
@@ -293,7 +296,7 @@ class GoogleSheets:
                             continue
                         elif current_before_day in period_list and current_after_day not in period_list:
                             last_day = current_day
-                            many_period += str(first_day.month) + "/" + str(first_day.day) + "-" + str(last_day.month) + "/" + str(last_day.day) + "+"
+                            many_period += "{}/{}-{}/{}+".format(first_day.month, first_day.day, last_day.month, last_day.day)
                         else:
                             continue
                     else:
@@ -310,7 +313,7 @@ class GoogleSheets:
         # 將走期填入googlesheets
         for x in range(len(period_df)):
             data = {
-                    "range": str(all_data["Campaign"][0]) + "!" + str(period_df["Column1"][x])+ "6",
+                    "range": "{}!{}6".format(all_data["Campaign"][0], period_df["Column1"][x]),
                     'majorDimension': 'ROWS',
                     "values":[[period_df["Period"][x]]],
                 }
@@ -319,7 +322,7 @@ class GoogleSheets:
         # 將版位名稱填入googlesheets
         for x in range(len(placement_index_df)):
             data = {
-                    "range": str(all_data["Campaign"][0]) + "!" + str(placement_index_df["Column1"][x])+ "4",
+                    "range": "{}!{}4".format(all_data["Campaign"][0], placement_index_df["Column1"][x]),
                     'majorDimension': 'ROWS',
                     "values": [[placement_index_df["版位名稱"][x]]],
                 }
@@ -337,7 +340,7 @@ class GoogleSheets:
             new_day = day + datetime.timedelta(days=i)
             if new_day.month == cur_month:
                 Date.append(new_day)
-                Date_Format.append(str(new_day.month) + "/" + str(new_day.day))
+                Date_Format.append("{}/{}".format(str(new_day.month), str(new_day.day)))
         Date_df = pandas.DataFrame(columns = ["Dimension.DATE", "Date_Format","Index"])
         Date_df["Dimension.DATE"], Date_df["Date_Format"] = Date, Date_Format
         Date_df["Index"] = [i + start_row for i in range(len(Date_df))] 
@@ -365,7 +368,7 @@ class GoogleSheets:
             values = []
             values.append([int(clean_data["Column.AD_SERVER_IMPRESSIONS"][j]),int(clean_data["Column.AD_SERVER_CLICKS"][j]),clean_data["Column.AD_SERVER_CTR"][j]])
             data = {
-                    "range": str(all_data["Campaign"][0]) + "!" + str(clean_data["Column1"][j]) + str(clean_data["Index"][j]) +":"+ str(clean_data["Column3"][j]) + str(clean_data["Index"][j]),
+                    "range": "{}!{}{}:{}{}".format(all_data["Campaign"][0], clean_data["Column1"][j], clean_data["Index"][j], clean_data["Column3"][j], clean_data["Index"][j]),
                     "majorDimension": 'ROWS',
                     "values":values,
                 }
@@ -376,7 +379,7 @@ class GoogleSheets:
         for j in range(len(unique_column)):
             df = clean_data[clean_data["Column1"] == unique_column[j]].reset_index(drop = True)
             data = {
-                    "range": str(all_data["Campaign"][0]) + "!" + str(df["Column1"][0]) + str(total_start_index) +":"+ str(df["Column2"][0]) + str(total_start_index),
+                    "range": "{}!{}{}:{}{}".format(all_data["Campaign"][0], df["Column1"][0], total_start_index, df["Column2"][0], total_start_index),
                     "majorDimension": 'ROWS',
                     "values":
                             [[int(sum(df["Column.AD_SERVER_IMPRESSIONS"])),int(sum(df["Column.AD_SERVER_CLICKS"]))]],
@@ -389,7 +392,7 @@ class GoogleSheets:
         for k in range(len(Date_df)):
             date.append([str(Date_df["Date_Format"][k])]) 
         data = {
-                "range": str(all_data["Campaign"][0]) + "!A" + str(Date_df["Index"].min())  + ":A",
+                "range": "{}!A{}:A".format(all_data["Campaign"][0], Date_df["Index"].min()),
                 'majorDimension': 'ROWS',
                 "values":date,
             }

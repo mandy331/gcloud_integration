@@ -44,14 +44,16 @@ class sendgridMail:
 
         # email格式
         period_now_subject_format = str(now.year) + str(now.month) + str(now.day)
-        email_subject = str("[成效報表]" + customer_name + "_" + period_now_subject_format + "_" + "更新" + condition)
+        email_subject = "[成效報表]{}_{}更新{}"
+        email_subject = email_subject.format(customer_name, period_now_subject_format, condition)
         
         for i in range(len(new_trafficker_email)):
             trafficker_name = str("閔慈")
             trafficker_email = str("mhuang98331@gmail.com")
             #trafficker_name = str(new_trafficker_email["負責人"][i])
             #trafficker_email = str(new_trafficker_email["Email"][i])
-            email_text_body = "Dear" + trafficker_name + "：<br><br>" + "    以下為" + customer_name + "的成效報表資訊：" + "<br><br>    產出狀態：" + condition + "<br>    客戶ID：" + customer_id + "<br>    報表產生時間：" + period_now + "<br>    報表抓取數據時間區間：" + period_time + "<br>    報表連結：" + spreadsheet_url + "<br><br>Best Regards,<br>CW Robot"
+            email_text_body = "Dear{}：<br><br>    以下為{}的成效報表資訊：<br><br>    產出狀態：{}<br>    客戶ID：{}<br>    報表產生時間：{}<br>    報表抓取數據時間區間：{}<br>    報表連結：{}<br><br>Best Regards,<br>CW Robot"
+            email_text_body = email_text_body.format(trafficker_name, customer_name, condition, customer_id, period_now, period_time, spreadsheet_url)           
             self.send(trafficker_email, email_subject, email_text_body) 
 
 
@@ -76,7 +78,8 @@ class sendgridMail:
         for j in trafficker_email:
             trafficker_name = j.get("name")
             email = j.get("email")
-            email_text_body = "Dear" + trafficker_name + "：" + "<br><br>    產出狀態：" + condition + "<br>    客戶ID：" + customer_id + "<br>    報表產生時間：" + period_now + "<br><br>Best Regards,<br>CW Robot"
+            email_text_body = "Dear{}：<br><br>    產出狀態：{}<br>    客戶ID：{}<br>    報表產生時間：{}<br><br>Best Regards,<br>CW Robot"
+            email_text_body = email_text_body.format(trafficker_name, condition, customer_id, period_now)
             self.send(email, email_subject, email_text_body)
 
     def send(self, recepient, subject, text_body):

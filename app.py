@@ -14,7 +14,7 @@ class Empty():
         pass
 
 def factory(type, **kwargs):
-    if type == 'admanager':
+    if type == 'adreport':
         return adreport()
     else:
         return Empty()
