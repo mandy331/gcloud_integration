@@ -69,9 +69,7 @@ class AdManager():
         # Filter for line items of a given order.
         statement = (ad_manager.StatementBuilder(version='v201911')
                      .Where('orderId = :orderId')
-                     .WithBindVariable('orderId', int(order_id))
-                     .Limit(None)  # No limit or offset for reports
-                     .Offset(None))
+                     .WithBindVariable('orderId', int(order_id)))
 
         # Collect all line item custom field IDs for an order.
         custom_field_ids = set()
