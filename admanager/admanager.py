@@ -50,7 +50,7 @@ class AdManager():
             end_date = datetime.date.today() + datetime.timedelta(6 - today.weekday())
             start_date = end_date - datetime.timedelta(days=6)
     
-        filename = self.download_order_report(
+        filename = self.download_order_report2(
             self.cert(), params['order_id'], start_date, end_date)
 
         report = self.advertisement_report(filename)
@@ -58,30 +58,6 @@ class AdManager():
         return report, start_date, end_date
 
     
-    def print_all_orders(self, ad_manager_client):
-
-        # Initialize appropriate service.
-        order_service = ad_manager_client.GetService(
-            'OrderService', version='v201908')
-
-        # Create a statement to select orders.
-        statement = ad_manager.StatementBuilder(version='v201908')
-
-        # Retrieve a small amount of orders at a time, paging
-        # through until all orders have been retrieved.
-        while True:
-            response = order_service.getOrdersByStatement(
-                statement.ToStatement())
-            if 'results' in response and len(response['results']):
-                for order in response['results']:
-                    # Print out some information for each order.
-                    print('Order with ID "%d" and name "%s" was found.\n' % (order['id'],
-                                                                             order['name']))
-                statement.offset += statement.limit
-            else:
-                break
-
-        #print('\nNumber of results found: %s' % response['totalResultSetSize'])
 
     def download_order_report(self, client, order_id, start_date, end_date):
         # Initialize appropriate service.
@@ -91,9 +67,11 @@ class AdManager():
         report_downloader = client.GetDataDownloader(version='v201908')
 
         # Filter for line items of a given order.
-        statement = (ad_manager.StatementBuilder(version='v201908')
+        statement = (ad_manager.StatementBuilder(version='v201911')
                      .Where('orderId = :orderId')
-                     .WithBindVariable('orderId', int(order_id)))
+                     .WithBindVariable('orderId', int(order_id))
+                     .Limit(None)  # No limit or offset for reports
+                     .Offset(None))
 
         # Collect all line item custom field IDs for an order.
         custom_field_ids = set()
@@ -153,6 +131,53 @@ class AdManager():
         print('Report job with id "%s" downloaded to:\n%s' % (
             report_job_id, report_file.name))
 
+        return report_file.name
+    
+    def download_order_report2(self, client, order_id, start_date, end_date):
+        # Create statement object to filter for an order.
+        statement = (ad_manager.StatementBuilder(version='v201911')
+                    .Where('ORDER_ID = :id')
+                    .WithBindVariable('id', int(order_id))
+                    .Limit(None)  # No limit or offset for reports
+                    .Offset(None))
+
+        # Create report job.
+        report_job = {
+            'reportQuery': {
+                'dimensions': ['LINE_ITEM_NAME', 'DATE', 'ORDER_NAME'],
+                'dimensionAttributes': ['ORDER_TRAFFICKER'],
+                'statement': statement.ToStatement(),
+                'columns': ['AD_SERVER_IMPRESSIONS', 'AD_SERVER_CLICKS'],
+                'dateRangeType': 'CUSTOM_DATE',
+                'startDate': start_date,
+                'endDate': end_date
+            }
+        }
+
+        # Initialize a DataDownloader.
+        report_downloader = client.GetDataDownloader(version='v201911')
+
+        try:
+            # Run the report and wait for it to finish.
+            report_job_id = report_downloader.WaitForReport(report_job)
+        except errors.AdManagerReportError as e:
+            print('Failed to generate report. Error was: %s' % e)
+
+        # Change to your preferred export format.
+        export_format = 'CSV_DUMP'
+
+        report_file = tempfile.NamedTemporaryFile(suffix='.csv.gz', delete=False)
+
+        # Download report data.
+        report_downloader.DownloadReportToFile(
+            report_job_id, export_format, report_file)
+
+        report_file.close()
+
+        # Display results.
+        print('Report job with id "%s" downloaded to:\n%s' % (
+            report_job_id, report_file.name))
+        
         return report_file.name
 
     def advertisement_report(self, report_file_name):

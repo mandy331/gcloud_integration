@@ -522,25 +522,21 @@ class GoogleSheets:
     
     def clean_trafficker_email(self, report, trafficker_email):
         
+        data = {}
         # 預定要寄給的負責人
-        trafficker_name, email = [], []
         for j in trafficker_email:
-            trafficker_name.append(j.get("name"))
-            email.append(j.get("email"))
+            if j.get("email"):
+                data[j.get("email")] = j.get("name")
 
         # 負責人姓名和負責人信箱
         trafficker = report["DimensionAttribute.ORDER_TRAFFICKER"]
         pattern = r"(.*)(\s)[(](.*)[)]"
         for person in trafficker:
             result = re.findall(pattern, person)
-            if result[0][2] not in email:
-                trafficker_name.append(result[0][0])
-                email.append(result[0][2])
+            if result[0][2] not in data.keys():
+                data[result[0][2]] = result[0][0]
         
-        tra = zip(trafficker_name, email)
-        tra_df = pandas.DataFrame(tra, columns = ["負責人","Email"]).drop_duplicates().reset_index(drop=True)
-
-        return tra_df
+        return data
 
         
         

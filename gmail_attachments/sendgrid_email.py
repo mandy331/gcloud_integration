@@ -50,7 +50,7 @@ class sendgridMail:
         for i in range(len(new_trafficker_email)):
             trafficker_name = str("閔慈")
             trafficker_email = str("mhuang98331@gmail.com")
-            #trafficker_name = str(new_trafficker_email["負責人"][i])
+            #trafficker_name = str(new_trafficker_email["trafficker"][i])
             #trafficker_email = str(new_trafficker_email["Email"][i])
             email_text_body = "Dear{}：<br><br>    以下為{}的成效報表資訊：<br><br>    產出狀態：{}<br>    客戶ID：{}<br>    報表產生時間：{}<br>    報表抓取數據時間區間：{}<br>    報表連結：{}<br><br>Best Regards,<br>CW Robot"
             email_text_body = email_text_body.format(trafficker_name, customer_name, condition, customer_id, period_now, period_time, spreadsheet_url)           
