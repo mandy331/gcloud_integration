@@ -12,7 +12,6 @@ from googleads import ad_manager, oauth2
 from googleads import errors
 
 from dotenv import load_dotenv
-from googlesheets.googlesheets import GoogleSheets
 
 load_dotenv()
 
@@ -51,37 +50,14 @@ class AdManager():
             end_date = datetime.date.today() + datetime.timedelta(6 - today.weekday())
             start_date = end_date - datetime.timedelta(days=6)
     
-        filename = self.download_order_report(
+        filename = self.download_order_report2(
             self.cert(), params['order_id'], start_date, end_date)
 
         report = self.advertisement_report(filename)
-        googlesheets = GoogleSheets(report, start_date, end_date)
-        googlesheets.run(params)
+        
+        return report, start_date, end_date
+
     
-    def print_all_orders(self, ad_manager_client):
-
-        # Initialize appropriate service.
-        order_service = ad_manager_client.GetService(
-            'OrderService', version='v201908')
-
-        # Create a statement to select orders.
-        statement = ad_manager.StatementBuilder(version='v201908')
-
-        # Retrieve a small amount of orders at a time, paging
-        # through until all orders have been retrieved.
-        while True:
-            response = order_service.getOrdersByStatement(
-                statement.ToStatement())
-            if 'results' in response and len(response['results']):
-                for order in response['results']:
-                    # Print out some information for each order.
-                    print('Order with ID "%d" and name "%s" was found.\n' % (order['id'],
-                                                                             order['name']))
-                statement.offset += statement.limit
-            else:
-                break
-
-        #print('\nNumber of results found: %s' % response['totalResultSetSize'])
 
     def download_order_report(self, client, order_id, start_date, end_date):
         # Initialize appropriate service.
@@ -91,7 +67,7 @@ class AdManager():
         report_downloader = client.GetDataDownloader(version='v201908')
 
         # Filter for line items of a given order.
-        statement = (ad_manager.StatementBuilder(version='v201908')
+        statement = (ad_manager.StatementBuilder(version='v201911')
                      .Where('orderId = :orderId')
                      .WithBindVariable('orderId', int(order_id)))
 
@@ -154,32 +130,83 @@ class AdManager():
             report_job_id, report_file.name))
 
         return report_file.name
+    
+    def download_order_report2(self, client, order_id, start_date, end_date):
+        # Create statement object to filter for an order.
+        statement = (ad_manager.StatementBuilder(version='v201911')
+                    .Where('ORDER_ID = :id')
+                    .WithBindVariable('id', int(order_id))
+                    .Limit(None)  # No limit or offset for reports
+                    .Offset(None))
+
+        # Create report job.
+        report_job = {
+            'reportQuery': {
+                'dimensions': ['LINE_ITEM_NAME', 'DATE', 'ORDER_NAME'],
+                'dimensionAttributes': ['ORDER_TRAFFICKER'],
+                'statement': statement.ToStatement(),
+                'columns': ['AD_SERVER_IMPRESSIONS', 'AD_SERVER_CLICKS'],
+                'dateRangeType': 'CUSTOM_DATE',
+                'startDate': start_date,
+                'endDate': end_date
+            }
+        }
+
+        # Initialize a DataDownloader.
+        report_downloader = client.GetDataDownloader(version='v201911')
+
+        try:
+            # Run the report and wait for it to finish.
+            report_job_id = report_downloader.WaitForReport(report_job)
+        except errors.AdManagerReportError as e:
+            print('Failed to generate report. Error was: %s' % e)
+
+        # Change to your preferred export format.
+        export_format = 'CSV_DUMP'
+
+        report_file = tempfile.NamedTemporaryFile(suffix='.csv.gz', delete=False)
+
+        # Download report data.
+        report_downloader.DownloadReportToFile(
+            report_job_id, export_format, report_file)
+
+        report_file.close()
+
+        # Display results.
+        print('Report job with id "%s" downloaded to:\n%s' % (
+            report_job_id, report_file.name))
+        
+        return report_file.name
 
     def advertisement_report(self, report_file_name):
         
         # 讀取檔案
         report = pandas.read_csv(str(report_file_name), compression='gzip', error_bad_lines=False)
-            
-        # 正則式 讀取版位、活動
-        ITEM = report["Dimension.LINE_ITEM_NAME"]
-        pattern = r"(([[])(.*)([]])|.*)(.*)"
-        advertisement, campaign = [], []
-        for text in ITEM:
-            if text[0] == "[":
-                result = re.findall(pattern, text)
-                campaign.append(result[0][2])
-                advertisement.append(result[0][4].strip())
-            else:
-                campaign.append("成效報表")
-                advertisement.append(text)
-
-        report["版位名稱"], report["Campaign"] = advertisement, campaign
         
-        # 轉換Dimension.DATE格式
-        report["Dimension.DATE"] = pandas.to_datetime(report["Dimension.DATE"])
-        report["Dimension.DATE"] = report["Dimension.DATE"].apply(lambda x: x.date())
+        if report.empty:
+            return report
+        
+        else: 
+            # 正則式 讀取版位、活動
+            ITEM = report["Dimension.LINE_ITEM_NAME"]
+            pattern = r"\[(.*)\](.*)"
+            advertisement, campaign = [], []
+            for text in ITEM:
+                if text[0] == "[":
+                    result = re.findall(pattern, text)
+                    campaign.append(result[0][0])
+                    advertisement.append(result[0][1].strip())
+                else:
+                    campaign.append("成效報表")
+                    advertisement.append(text)
 
-        new_report = report[["Dimension.ORDER_NAME", "Dimension.DATE", "版位名稱", "Campaign",
-                             "Column.AD_SERVER_IMPRESSIONS", "Column.AD_SERVER_CLICKS", "DimensionAttribute.ORDER_TRAFFICKER"]]
+            report["版位名稱"], report["Campaign"] = advertisement, campaign
+            
+            # 轉換Dimension.DATE格式
+            report["Dimension.DATE"] = pandas.to_datetime(report["Dimension.DATE"])
+            report["Dimension.DATE"] = report["Dimension.DATE"].apply(lambda x: x.date())
 
-        return new_report
+            new_report = report[["Dimension.ORDER_NAME", "Dimension.DATE", "版位名稱", "Campaign",
+                                "Column.AD_SERVER_IMPRESSIONS", "Column.AD_SERVER_CLICKS", "DimensionAttribute.ORDER_TRAFFICKER"]]
+
+            return new_report

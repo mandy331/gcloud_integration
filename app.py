@@ -4,7 +4,8 @@ import json
 import sys
 
 from admanager.admanager import AdManager
-from gmail_attachments.gmail_attachment import GmailAttachment
+from gmail_attachments.sendgrid_email import sendgridMail
+from adreport import adreport
 
 
 class Empty():
@@ -13,8 +14,8 @@ class Empty():
         pass
 
 def factory(type, **kwargs):
-    if type == 'admanager':
-        return AdManager()
+    if type == 'adreport':
+        return adreport()
     else:
         return Empty()
 
