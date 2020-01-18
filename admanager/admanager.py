@@ -1,4 +1,4 @@
-import datetime
+from datetime import date, datetime, timedelta
 import gzip
 import os
 import sys
@@ -37,18 +37,18 @@ class AdManager():
             return None
 
         def check_future(str_date):
-            if datetime.datetime.strptime(str_date, "%Y-%m-%d") > datetime.datetime.now():
-                return datetime.date.today()
+            if datetime.strptime(str_date, "%Y-%m-%d") > datetime.now():
+                return date.today()
             else:
-                return datetime.datetime.strptime(str_date, "%Y-%m-%d").date()
+                return datetime.strptime(str_date, "%Y-%m-%d").date()
         
         if 'start_date' in params and 'end_date' in params:           
             start_date = check_future(params['start_date'])
             end_date = check_future(params['end_date'])            
             
         else:
-            end_date = datetime.date.today() + datetime.timedelta(6 - today.weekday())
-            start_date = end_date - datetime.timedelta(days=6)
+            end_date = self.prior_week_end()
+            start_date = self.prior_week_start()
     
         filename = self.download_order_report2(
             self.cert(), params['order_id'], start_date, end_date)
@@ -56,9 +56,13 @@ class AdManager():
         report = self.advertisement_report(filename)
         
         return report, start_date, end_date
-
     
+    def prior_week_end(self):
+        return (datetime.now() - timedelta(days = ((datetime.now().isoweekday())%7))).date()
 
+    def prior_week_start(self):
+        return self.prior_week_end() - timedelta(days = 6)
+    
     def download_order_report(self, client, order_id, start_date, end_date):
         # Initialize appropriate service.
         line_item_service = client.GetService(

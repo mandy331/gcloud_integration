@@ -22,7 +22,8 @@ class adreport():
             sendgridMail().send_successful_mail(params['order_id'], report, spreadsheet_url, new_trafficker_email)
         
         else:
-            sendgridMail().send_fail_mail(params["order_id"], params['trafficker_email'])
+            if 'trafficker_email' in params:
+                sendgridMail().send_fail_mail(params["order_id"], params['trafficker_email'])
 
 
 

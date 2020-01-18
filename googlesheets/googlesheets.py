@@ -23,7 +23,7 @@ DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive','https://www.googleapis.
 class GoogleSheets:
 
     def __init__(self, report, start_date, end_date):
-            self.key = env.get("KEY","cw-web-prod-ad-manager.json")
+            self.DFP_KEY = env.get("DFP_KEY","cw-web-prod-ad-manager.json")
             self.folder = env.get("SHARE_FOLDER")
             
             self.service = None
@@ -35,11 +35,11 @@ class GoogleSheets:
             self.template_spreadsheet_id = env.get("template_spreadsheet_id")
             self.template_sheet_id = env.get("template_sheet_id")
             self.start_row = 8
-            self.default_template_total_row = 299
+            self.default_template_three_total_row = 299
             pass
    
     def cert(self, SCOPES):
-        credentials = ServiceAccountCredentials.from_json_keyfile_name(self.key, SCOPES)
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(self.DFP_KEY, SCOPES)
         if SCOPES == SHEETS_SCOPES:
             self.service = build('sheets', 'v4', credentials=credentials)
         elif SCOPES == DRIVE_SCOPES:
@@ -84,7 +84,7 @@ class GoogleSheets:
                     update_data2, total_start_index, last_row_index = self.fill_month_campaign_data(column_df, placement_index_df, campaign_report, cur_month, early_day, days, self.start_row) 
                     self.copy_total_three_rows(create_spreadsheet_id, sheet_id, total_start_index)
                     self.update_values(create_spreadsheet_id, update_data2)    
-                    self.default_template_total_row += 3          
+                    self.default_template_three_total_row += 3          
             self.delete_empty_cols_rows(create_spreadsheet_id, sheet_id, last_column_index, last_row_index)    
             self.start_row = 8
 
@@ -93,9 +93,13 @@ class GoogleSheets:
         
         # 產出的報表放進google共用雲端資料夾
         self.cert(DRIVE_SCOPES)
-        self.move_to_folder(self.folder, create_spreadsheet_id)
-        new_trafficker_email = self.clean_trafficker_email(self.report, params["trafficker_email"])
+        self.move_to_folder(self.folder, create_spreadsheet_id)     
         
+        if "trafficker_email" in params:
+            new_trafficker_email = self.clean_trafficker_email(self.report, params["trafficker_email"])
+        else:
+            new_trafficker_email = self.clean_trafficker_email(self.report)
+
         return spreadsheet_url, new_trafficker_email
       
     def create_spreadsheet(self, report, start_date, end_date):
@@ -423,8 +427,8 @@ class GoogleSheets:
                     "cutPaste":{
                         "source": {
                                 "sheetId": sheet_id,
-                                "startRowIndex": self.default_template_total_row,
-                                "endRowIndex": self.default_template_total_row + 3,
+                                "startRowIndex": self.default_template_three_total_row,
+                                "endRowIndex": self.default_template_three_total_row + 3,
                                 "startColumnIndex": 0,
                                 "endColumnIndex": 104,
                             },
@@ -520,13 +524,14 @@ class GoogleSheets:
                                             fields='id, parents').execute()
     
     
-    def clean_trafficker_email(self, report, trafficker_email):
+    def clean_trafficker_email(self, report, trafficker_email = None):
         
         data = {}
         # 預定要寄給的負責人
-        for j in trafficker_email:
-            if j.get("email"):
-                data[j.get("email")] = j.get("name")
+        if trafficker_email:
+            for j in trafficker_email:
+                if j.get("email"):
+                    data[j.get("email")] = j.get("name")
 
         # 負責人姓名和負責人信箱
         trafficker = report["DimensionAttribute.ORDER_TRAFFICKER"]

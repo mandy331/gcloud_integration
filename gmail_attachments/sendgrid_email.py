@@ -35,8 +35,8 @@ class sendgridMail:
         report["Dimension.DATE"] = pandas.to_datetime(report["Dimension.DATE"])
         early_day = report["Dimension.DATE"].min()
         last_day = report["Dimension.DATE"].max()
-        period_start = early_day.strftime('%Y/%m/%d %H:%M') 
-        period_end = last_day.strftime('%Y/%m/%d %H:%M')
+        period_start = early_day.strftime('%Y/%m/%d') 
+        period_end = last_day.strftime('%Y/%m/%d')
         period_time = period_start + " - " + period_end
         
         # 報表連結
@@ -67,7 +67,7 @@ class sendgridMail:
 
         # 報表產生時間
         now = datetime.datetime.now()
-        period_now = now.strftime('%Y/%m/%d %H:%M') 
+        period_now = now.strftime('%Y/%m/%d %H:%M')
 
         # email格式
         period_now_subject_format = str(now.year) + str(now.month) + str(now.day)
