@@ -32,8 +32,8 @@ class GoogleSheets:
             self.end_date = end_date
             self.start_date = start_date
 
-            self.template_spreadsheet_id = env.get("template_spreadsheet_id")
-            self.template_sheet_id = env.get("template_sheet_id")
+            self.template_spreadsheet_id = env.get("TEMPLATE_SPREADSHEET_ID")
+            self.template_sheet_id = env.get("TEMPLATE_SHEET_ID")
             self.start_row = 8
             self.default_template_three_total_row = 299
             pass

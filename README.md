@@ -1,33 +1,30 @@
-## Gmail 服務整合紀錄
+# Gcloud_Integration整合服務
 
-### 目錄結構：
-- admanager: 廣告系統串接
-- attachments: 下載EMAIL附件存放的目錄
-- cert: 存放各種認證檔案
-- gmail_attachment: GMAIL串接
-- spreadsheet: Google Spreadsheet 串接
+## 目錄結構：
+- admanager: Google Ad Manager串接
+- googlesheets: Google Spreadsheet串接
+- gmail_attachment: Sendgrid Email串接
+- cert: 存放憑證檔案
+- app: Package
+- adreport: Controller 
 
-### .env 環境參數：
+## .env 環境參數：
 
 |Key|Value|Desc|
 |---|-----|----|
-|GOOGLEADS_YAML|cert/googleads.yaml|AD Manager 設定檔位置|
-|GMAIL_CREDENTIALS|cert/robot-gmail-credentials.json|GMAIL 認證檔位置|
-|GMAIL_TOKEN_PICKLE|cert/gmail_token.pickle|GMAIL 授權檔位置|
+|GOOGLEADS_YAML|cert/googleads.yaml|Ad Manager 設定檔位置|
+|DFP_KEY|cert/cw-web-prod-ad-manager.json|Google API Service Account Key|
+|SENDGRID_API_KEY||Sendgrid Email Key|
+|SHARE_FOLDER||Google Drive共享資料夾ID|
+|TEMPLATE_SPREADSHEET_ID. TEMPLATE_SHEET_ID||Google Spreadsheet報表模板|
 
 
+## 運作流程
+Ad Manager下載報表 → 產出Google Spreadsheet報表 → 寄出Email
+ 
 
-### Gmail 下載附件
+## 執行
 
 ```console
-    python app.py -s gmail # 下載所有的附件
+    python app.py -s adreport  
 ```
-### Ad Manager 提取所有廣告訂單
-
-```console
-    python app.py -s admanager  -p '{"order_id": 廣告訂單ID }'   # 抓出條件是ORDER_ID的廣告訂單
-```
-
-### 簡單的git指令
-
-    <a href="GITFIRST.md">由此去</a>
