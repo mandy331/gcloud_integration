@@ -5,7 +5,7 @@ import sys
 
 from admanager.admanager import AdManager
 from gmail_attachments.sendgrid_email import sendgridMail
-from adreport import adreport
+from adreport.adreport import adreport
 
 
 class Empty():
