@@ -55,17 +55,14 @@ class GoogleSheets:
 
         params = args[0]
 
-        if 'prebuy' in params:
-            self.clean_prebuy_data(self.report, params['prebuy'])
-        else:
-            self.clean_prebuy_data(self.report)
+        if "prebuy" in params:
+            month_list, prebuy_data = self.clean_prebuy_data(params['prebuy'], self.start_date, self.end_date)
         
         campaign, campaign_count = self.count_campaign(self.report)
         create_spreadsheet_id = self.create_spreadsheet(self.report, self.start_date, self.end_date)
         column_df = self.default_template_sheet_column()
 
         for i in range(campaign_count):
-
             # 創建sheet
             sheet_id = self.copy_template_to_sheets(self.template_spreadsheet_id, self.template_sheet_id, create_spreadsheet_id)
             self.rename_sheet(create_spreadsheet_id, sheet_id, campaign[i])
@@ -73,18 +70,23 @@ class GoogleSheets:
             # 每個活動的報表
             campaign_report = self.get_campaign_report(self.report, campaign[i])
 
-            # 填入 Advertiser、Period、版位名稱、走期、日期
-            unique_placement, last_column_index, last_row_index, total_date_df, prebuy_date_df, all_data2, update_data1 = self.fill_campaign_data(column_df, campaign_report, self.start_date, self.end_date)
+            # 填入 Advertiser、Period、版位名稱、走期、日期、數據
+            column_index_df, unique_placement, last_column_index, last_row_index, total_index_df, prebuy_index_df, all_data, update_data1  = self.fill_campaign_data(campaign[i], column_df, campaign_report, self.start_date, self.end_date)
             self.update_values(create_spreadsheet_id, update_data1)
             
             # 複製 Total、Prebuy、達成率 三列
-            for i in range(len(total_date_df)):
-                self.copy_total_three_rows(create_spreadsheet_id, sheet_id, total_date_df["Index"][i])
+            for k in range(len(total_index_df)):
+                self.copy_total_three_rows(create_spreadsheet_id, sheet_id, total_index_df["Index"][k])
                 self.default_template_three_total_row += 3
             
-            # 填入Total、Prebuy數據
-            update_data2 = self.fill_sum_data(unique_placement, all_data2, total_date_df, prebuy_date_df)
+            # 填入Total 數據
+            update_data2 = self.fill_total_data(campaign[i], unique_placement, total_index_df, all_data)
             self.update_values(create_spreadsheet_id, update_data2)
+
+            # 填入Prebuy 數據
+            if 'prebuy_data' in locals().keys():
+               update_data3 = self.fill_prebuy_data(campaign[i], prebuy_data, column_index_df, prebuy_index_df, all_data)
+               self.update_values(create_spreadsheet_id, update_data3)
 
             # 刪除空的行列
             self.delete_empty_cols_rows(create_spreadsheet_id, sheet_id, last_column_index, last_row_index)
@@ -96,38 +98,55 @@ class GoogleSheets:
         self.cert(DRIVE_SCOPES)
         self.move_to_folder(self.folder, create_spreadsheet_id)     
         
-        if "trafficker_email" in params:
-            new_trafficker_email = self.clean_trafficker_email(self.report, params["trafficker_email"])
+        if "traffickers" in params:
+            new_trafficker_email = self.clean_trafficker_email(self.report, params["traffickers"])
         else:
             new_trafficker_email = self.clean_trafficker_email(self.report)
 
         return spreadsheet_url, new_trafficker_email
     
-    def clean_prebuy_data(self, report, prebuy = None):
+    def clean_prebuy_data(self, prebuy, start_date, end_date):
         
-        prebuy_data = pandas.DataFrame(columns = ["版位名稱","pre_imps","pre_clicks"])
-        # Prebuy數據
-        if prebuy:
-            for k in prebuy:
-                if k.get("placement"):
-                    each_prebuy = [k.get("placement")]
-                    if k.get("imps"):
-                        each_prebuy.append(k.get("imps"))
-                    else:
-                        each_prebuy.append(-1)
-                    if k.get("clicks"):
-                        each_prebuy.append(k.get("clicks"))
-                    else:
-                        each_prebuy.append(-1)
-                    each_prebuy = pandas.DataFrame([each_prebuy], columns = ["版位名稱","pre_imps","pre_clicks"])
-                    prebuy_data = pandas.concat([prebuy_data, each_prebuy], axis=0, ignore_index=True).reset_index(drop=True)
-            report = pandas.merge(report, prebuy_data, how = "left", on = "版位名稱")
-            report['pre_imps'] = report['pre_imps'].fillna(-1)
-            report['pre_clicks'] = report['pre_clicks'].fillna(-1)        
-        else:
-            report['pre_imps'],report['pre_clicks'] = -1,-1
+        months = end_date.month - start_date.month
+        days = end_date.day - start_date.day
 
-        self.report = report
+        def check_year(start_date, end_date):
+            year = end_date.year - start_date.year
+            if year > 0:
+                return True
+            else:
+                return False
+        
+        if check_year(start_date, end_date):
+            months = months + 12
+
+        month_list = [start_date.strftime("%Y%m")]
+        for i in range(days+1):
+            new_day = start_date + datetime.timedelta(days=i)
+            new_day_format = new_day.strftime("%Y%m")
+            if new_day_format not in month_list:
+                month_list.append(new_day_format)
+        
+        # 從參數中獲取prebuy數據
+        placement_list, year_month, imps, clicks = [], [], [], []
+        for prebuy_month in prebuy[0]:
+            if prebuy_month in month_list:
+                for placement in prebuy[0][prebuy_month].keys():
+                    placement_list.append(placement)
+                    year_month.append(prebuy_month)
+                    if "impressions" in prebuy[0][prebuy_month][placement]:
+                        imps.append(prebuy[0][prebuy_month][placement]["impressions"])
+                    else:
+                        imps.append(-1)
+                    if "clicks" in prebuy[0][prebuy_month][placement]:
+                        clicks.append(prebuy[0][prebuy_month][placement]["clicks"])
+                    else:
+                        clicks.append(-1)
+        
+        prebuy_data = zip(placement_list, year_month, imps, clicks)
+        prebuy_data = pandas.DataFrame(prebuy_data, columns = ["版位名稱", "year_month", "imps", "clicks"])
+
+        return month_list, prebuy_data
       
     def create_spreadsheet(self, report, start_date, end_date):
         
@@ -255,47 +274,56 @@ class GoogleSheets:
         report = report.reset_index(drop = True)
         return report
     
-    def fill_campaign_data(self, column_df, campaign_report, start_date, end_date):
+    def update_data_format(self, sheet_range, majorDimension, values):
+
+        data = {
+                    "range": sheet_range,
+                    'majorDimension': majorDimension,
+                    "values": [values],
+                }
         
-        # 將數據轉為可放入googlesheets的格式
+        return data
+    
+    def fill_campaign_data(self, compaign_name, column_df, campaign_report, start_date, end_date):
+                    
+        ## 將數據轉為可放入googlesheets的格式
         update_data1 = []
 
-        # 將Advertiser、Period填入googlesheets
-        agency = "Agency：{}".format(campaign_report["Campaign"][0])
+        ## 整理Advertiser、Period數據
+        agency = "Agency：{}".format(compaign_name)
         advertiser = "Advertiser：{}".format(campaign_report["Dimension.ORDER_NAME"][0])
-        format2_end_date = end_date.strftime("%m/%d")
         format2_start_date = start_date.strftime("%m/%d")
+        format2_end_date = end_date.strftime("%m/%d")
         all_period = "Period：{}-{}".format(format2_start_date, format2_end_date)
-        data = {
-                    "range": "{}!A1:A3".format(campaign_report["Campaign"][0]),
-                    'majorDimension': 'COLUMNS',
-                    "values": [[agency, advertiser, all_period]],
-                }
-        update_data1.append(data) 
-               
+        
+        # Advertiser、Period填入googlesheets
+        update_data1.append(self.update_data_format("{}!A1:A3".format(compaign_name), 'COLUMNS', [agency, advertiser, all_period]))
+           
+        ## 版位名稱
         # 版位名稱和欄位位置匹配
         placement_list = sorted(list(set(campaign_report["版位名稱"])))
-        placement_index_df = column_df[0:len(placement_list)]
-        placement_index_df.loc[:, '版位名稱'] = placement_list
+        column_index_df = column_df[0:len(placement_list)]
+        column_index_df.loc[:, '版位名稱'] = placement_list
+        
+        # 版位名稱填入googlesheets
+        for x in range(len(column_index_df)):
+            placement_range = "{}!{}4".format(compaign_name, column_index_df["Column1"][x])
+            values = [column_index_df["版位名稱"][x]]
+            update_data1.append(self.update_data_format(placement_range, "ROWS", values))
+        
+        
+        ## 定義最後一欄的位置
         last_column_index = 1 + len(placement_list)*3
         
-        # 版位名稱和版位Column index合併
-        all_data = pandas.merge(campaign_report, placement_index_df, on = "版位名稱")
+        
+        ## 版位名稱和版位Column index合併
+        campaign_index_df = pandas.merge(campaign_report, column_index_df, on = "版位名稱")
 
-        # 將版位名稱填入googlesheets
-        for x in range(len(placement_index_df)):
-            data = {
-                    "range": "{}!{}4".format(all_data["Campaign"][0], placement_index_df["Column1"][x]),
-                    'majorDimension': 'ROWS',
-                    "values": [[placement_index_df["版位名稱"][x]]],
-                }
-            update_data1.append(data)
-
-        # 整理各版位的走期
-        unique_placement = list(set(all_data["Column1"]))
+        ## 走期
+        unique_placement = list(set(campaign_index_df["Column1"]))
         period = []
         for i in range(len(unique_placement)):
-            period_list = list(set(all_data[all_data["Column1"] == unique_placement[i]]["Dimension.DATE"]))
+            period_list = list(set(campaign_index_df[campaign_index_df["Column1"] == unique_placement[i]]["Dimension.DATE"]))
             start_day = min(period_list)
             end_day = max(period_list)
             days = (end_day - start_day).days
@@ -333,133 +361,169 @@ class GoogleSheets:
         
         period_df = zip(unique_placement, period)
         period_df = pandas.DataFrame(period_df, columns = ["Column1", "Period"])
-        
-        # 將走期填入googlesheets
+
+        # 走期填入googlesheets
         for x in range(len(period_df)):
-            data = {
-                    "range": "{}!{}6".format(all_data["Campaign"][0], period_df["Column1"][x]),
-                    'majorDimension': 'ROWS',
-                    "values":[[period_df["Period"][x]]],
-                }
-            update_data1.append(data)
+            period_range = "{}!{}6".format(compaign_name, period_df["Column1"][x])
+            values = [period_df["Period"][x]]
+            update_data1.append(self.update_data_format(period_range, 'ROWS', values))
         
-        def insert_total_index(Date_list, Date_Format_list, day):
+        
+        ## 左欄Date
+        def insert_month_total_index(Date_list, Display_list, day):
             Date_list = Date_list + [day] * 3
-            Date_Format_list = Date_Format_list + ["Total", "Prebuy", "達成率"]
-            return Date_list, Date_Format_list
+            Display_list = Display_list + ["Total(Month)", "Pre-buy(Month)", "達成率(Month)"]
+            return Date_list, Display_list
+        
+        def insert_total_index(Date_list, Display_list, day):
+            Date_list = Date_list + [day] * 3
+            Display_list = Display_list + ["Total", "Pre-buy", "達成率"]
+            return Date_list, Display_list
 
         # 整理日期數據
         days = (end_date - start_date).days
-        Date, Date_Format = [], []
+        Date, Display = [], []
         for i in range(days+1):
             new_day = start_date + datetime.timedelta(days=i)
-            befor_new_day = new_day - datetime.timedelta(days=1)
-            if befor_new_day > start_date and new_day.month != befor_new_day.month:
-                Date, Date_Format = insert_total_index(Date, Date_Format, befor_new_day)
+            before_new_day = new_day - datetime.timedelta(days=1)
+            if before_new_day > start_date and new_day.month != before_new_day.month:
+                Date, Display = insert_month_total_index(Date, Display, before_new_day) # 每個月的小結
             Date.append(new_day)
-            Date_Format.append("{}/{}".format(str(new_day.month), str(new_day.day)))
-        Date, Date_Format = insert_total_index(Date, Date_Format, end_date)
+            Display.append("{}/{}".format(new_day.month, new_day.day))
+        Date, Display = insert_month_total_index(Date, Display, end_date) # 最後一個月的小結
+        Date, Display = insert_total_index(Date, Display, end_date) # 每個版位的大結
 
-        Date_df = pandas.DataFrame(columns = ["Dimension.DATE", "Date_Format","Index"])
-        Date_df["Dimension.DATE"], Date_df["Date_Format"] = Date, Date_Format
-        Date_df["Index"] = [i + self.start_row for i in range(len(Date_df))]
-        last_row_index = Date_df["Index"].max() + 1
-
-        # 將日期填入googlesheets
+        row_index_df = pandas.DataFrame(columns = ["Dimension.DATE", "Display","Index"])
+        row_index_df["Dimension.DATE"], row_index_df["Display"] = Date, Display
+        row_index_df["Month"] = row_index_df["Dimension.DATE"].apply(lambda x:x.month)
+        row_index_df["Index"] = [i + self.start_row for i in range(len(row_index_df))]
+        
+        # 左欄Date填入googlesheets
         date = []
-        for k in range(len(Date_df)):
-            date.append([str(Date_df["Date_Format"][k])]) 
-        data = {
-                "range": "{}!A{}:A".format(all_data["Campaign"][0], Date_df["Index"].min()),
-                'majorDimension': 'ROWS',
-                "values":date,
-            }
-        update_data1.append(data)
+        for k in range(len(row_index_df)):
+            date.append(str(row_index_df["Display"][k])) 
+        update_data1.append(self.update_data_format("{}!A{}:A".format(compaign_name, row_index_df["Index"].min()), 'COLUMNS', date))
         
-        # 區分日期和Total、Pre-buy列
-        placement_date_df = Date_df[(Date_df["Date_Format"] != "Total") & (Date_df["Date_Format"] != "Prebuy") & (Date_df["Date_Format"] != "達成率")].reset_index(drop =True)
-        total_date_df = Date_df[(Date_df["Date_Format"] == "Total")].reset_index(drop = True)
-        prebuy_date_df = Date_df[(Date_df["Date_Format"] == "Prebuy")].reset_index(drop =True)
         
-        # 合併 成效報表、版位名稱對照表、日期
-        all_data2 = pandas.merge(all_data, placement_date_df, on = "Dimension.DATE")
+        ## 定義最後一列的位置
+        last_row_index = row_index_df["Index"].max() + 1
 
-        # 整理每日數據
-        clean_data = pandas.DataFrame(all_data2.groupby(['Column1','Column2','Column3','Index'])['Column.AD_SERVER_IMPRESSIONS', 'Column.AD_SERVER_CLICKS'].sum().reset_index(drop=False))
+        
+        ## 區分日期和Total、Pre-buy列
+        data_index_df = row_index_df[~(row_index_df["Display"].str.contains("Total")) & ~(row_index_df["Display"].str.contains("Pre-buy")) & ~(row_index_df["Display"].str.contains("達成率"))].reset_index(drop =True)
+        total_index_df = row_index_df[(row_index_df["Display"].str.contains("Total"))].reset_index(drop = True)
+        prebuy_index_df = row_index_df[(row_index_df["Display"].str.contains("Pre-buy"))].reset_index(drop =True)
+        
+        
+        ## 合併 成效報表、版位名稱對照表、日期
+        all_data = pandas.merge(campaign_index_df, data_index_df, on = "Dimension.DATE")
+
+        
+        ## 每日數據
+        clean_data = pandas.DataFrame(all_data.groupby(['Column1','Column2','Column3','Index'])['Column.AD_SERVER_IMPRESSIONS', 'Column.AD_SERVER_CLICKS'].sum().reset_index(drop=False))
         clean_data["Column.AD_SERVER_CTR"] = round(clean_data["Column.AD_SERVER_CLICKS"] / clean_data["Column.AD_SERVER_IMPRESSIONS"], 4)
         
         # 填入每日數據
         for j in range(len(clean_data)):
+            data_range = "{}!{}{}:{}{}".format(compaign_name, clean_data["Column1"][j], clean_data["Index"][j], clean_data["Column3"][j], clean_data["Index"][j])
             values = []
-            values.append([int(clean_data["Column.AD_SERVER_IMPRESSIONS"][j]),int(clean_data["Column.AD_SERVER_CLICKS"][j]),clean_data["Column.AD_SERVER_CTR"][j]])
-            data = {
-                    "range": "{}!{}{}:{}{}".format(all_data["Campaign"][0], clean_data["Column1"][j], clean_data["Index"][j], clean_data["Column3"][j], clean_data["Index"][j]),
-                    "majorDimension": 'ROWS',
-                    "values":values,
-                }
-            update_data1.append(data)
-                
-        return unique_placement, last_column_index, last_row_index, total_date_df, prebuy_date_df, all_data2, update_data1 
+            values.append(int(clean_data["Column.AD_SERVER_IMPRESSIONS"][j]))
+            values.append(int(clean_data["Column.AD_SERVER_CLICKS"][j]))
+            values.append(clean_data["Column.AD_SERVER_CTR"][j])
+            update_data1.append(self.update_data_format(data_range, 'ROWS', values))
+        
+    
+        return column_index_df, unique_placement, last_column_index, last_row_index, total_index_df, prebuy_index_df, all_data, update_data1 
           
-    def fill_sum_data(self, unique_placement, all_data2, total_date_df, prebuy_date_df):
+    def fill_total_data(self, compaign_name, unique_placement, total_index_df, all_data):
         
-        # 將數據轉為可放入googlesheets的格式
+        ## 將數據轉為可放入googlesheets的格式
         update_data2 = []
-                
-        # 填入Total三欄數據
-        for j in unique_placement:
-            for k in range(len(total_date_df)):
-                df = all_data2[(all_data2["Column1"] == j) & (all_data2["Dimension.DATE"] <= total_date_df["Dimension.DATE"][k])].reset_index(drop = True)
-                if len(df) == 0:
-                    df2 = all_data2[all_data2["Column1"] == j].reset_index(drop=True)
-                    data = {
-                            "range": "{}!{}{}:{}{}".format(all_data2["Campaign"][0], df2["Column1"][0], total_date_df["Index"][k], df2["Column2"][0], total_date_df["Index"][k]),
-                            "majorDimension": 'ROWS',
-                            "values":
-                                [[0, 0]],
-                            }
-                else:
-                    data = {
-                            "range": "{}!{}{}:{}{}".format(all_data2["Campaign"][0], df["Column1"][0], total_date_df["Index"][k], df["Column2"][0], total_date_df["Index"][k]),
-                            "majorDimension": 'ROWS',
-                            "values":
-                                [[int(sum(df["Column.AD_SERVER_IMPRESSIONS"])), int(sum(df["Column.AD_SERVER_CLICKS"]))]],
-                            }
-                update_data2.append(data)
-        
-        # 整理Pre-buy三欄數據
-        clean_prebuy_data = all_data2[(all_data2['pre_imps'] != -1) | (all_data2['pre_clicks'] != -1)]
-        clean_prebuy_data = clean_prebuy_data[["Column1", "Column2", "pre_imps", "pre_clicks"]]
-        
-        if clean_prebuy_data.empty:
-            pass
 
-        else:
-            # 填入Pre-buy數據
-            unique_prebuy_column = list(set(clean_prebuy_data["Column1"]))
-            for j in range(len(unique_prebuy_column)):
-                for k in range(len(prebuy_date_df)):
-                    df = clean_prebuy_data[(clean_prebuy_data["Column1"] == unique_prebuy_column[j])].drop_duplicates(inplace=False).reset_index(drop = True)
-                    if df['pre_imps'][0] != -1:
-                        data = {
-                            "range": "{}!{}{}".format(all_data2["Campaign"][0], df["Column1"][0], prebuy_date_df["Index"][k]),
-                            "majorDimension": 'ROWS',
-                            "values":
-                                    [[int(df['pre_imps'][0])]],
-                            }
-                        update_data2.append(data)
-                    
-                    if df['pre_clicks'][0] != -1:
-                        data = {
-                            "range": "{}!{}{}".format(all_data2["Campaign"][0], df["Column2"][0], prebuy_date_df["Index"][k]),
-                            "majorDimension": 'ROWS',
-                            "values":
-                                    [[int(df['pre_clicks'][0])]],
-                            }
-                        update_data2.append(data)
-               
+        ## 塡入月結、大結文字
+        for k in range(len(total_index_df)):
+            total_range = "{}!A{}".format(compaign_name, total_index_df["Index"][k])
+            values = []
+            if total_index_df["Display"][k] == "Total(Month)":
+                values.append("Total(Month)")
+            else:
+                values.append("Total")
+            update_data2.append(self.update_data_format(total_range, 'ROWS', values))
+            
+        ## 填入Total數據
+        for j in unique_placement:
+            for k in range(len(total_index_df)):
+                if total_index_df["Display"][k] == "Total(Month)":
+                    df = all_data[(all_data["Column1"] == j) & (all_data["Dimension.DATE"] <= total_index_df["Dimension.DATE"][k]) & (all_data["Month"] == total_index_df["Dimension.DATE"][k].month)].reset_index(drop = True)
+                    if len(df) == 0:
+                        df = all_data[all_data["Column1"] == j].reset_index(drop=True)
+                        values = [0, 0]
+                    else:
+                        values = [int(sum(df["Column.AD_SERVER_IMPRESSIONS"])), int(sum(df["Column.AD_SERVER_CLICKS"]))]
+                else:
+                    df = all_data[all_data["Column1"] == j].reset_index(drop=True)
+                    values = [int(sum(df["Column.AD_SERVER_IMPRESSIONS"])), int(sum(df["Column.AD_SERVER_CLICKS"]))]
+                
+                total_range2 = "{}!{}{}:{}{}".format(compaign_name, df["Column1"][0], total_index_df["Index"][k], df["Column2"][0], total_index_df["Index"][k])
+                update_data2.append(self.update_data_format(total_range2, 'ROWS', values))
+   
         return update_data2
-  
+        
+    def fill_prebuy_data(self, compaign_name, prebuy_data, column_index_df, prebuy_index_df, all_data):
+        
+        ## 將數據轉為可放入googlesheets的格式
+        update_data3 = []
+        
+        ## 塡入月結、大結文字
+        for k in range(len(prebuy_index_df)):
+            prebuy_range = "{}!A{}".format(compaign_name, prebuy_index_df["Index"][k])
+            values = []
+            if prebuy_index_df["Display"][k] == "Pre-buy(Month)":
+                values.append("Pre-buy(Month)")
+            else:
+                values.append("Pre-buy")
+            update_data3.append(self.update_data_format(prebuy_range, 'ROWS', values))
+                
+        # 新增year_month以跟prebuy_data合併
+        prebuy_index_df["year_month"] = prebuy_index_df["Dimension.DATE"].apply(lambda x:x.strftime("%Y%m"))
+        
+        
+        ## 合併prebuy_data、版位Column Index、Prebuy Row Index
+        def merge_prebuy_info(prebuy_data, column_index_df, prebuy_index_df):
+            prebuy_column_df = pandas.merge(prebuy_data, column_index_df, on = "版位名稱")
+            prebuy_df = pandas.merge(prebuy_column_df, prebuy_index_df, on = "year_month")
+            prebuy_df = prebuy_df.dropna(subset=['Column1', 'Index'],inplace=False)
+            return prebuy_df
+
+        
+        ## 確認有起訖日內的prebuy_data
+        if not merge_prebuy_info(prebuy_data, column_index_df, prebuy_index_df).empty:
+            prebuy_df = merge_prebuy_info(prebuy_data, column_index_df, prebuy_index_df)
+            for i in range(len(prebuy_df)):
+                if prebuy_df["Display"][i] == "Pre-buy(Month)":
+                    if prebuy_df["imps"][i] != -1:
+                        prebuy_range3 = "{}!{}{}".format(compaign_name, prebuy_df["Column1"][i], prebuy_df["Index"][i])
+                        values3 = [int(prebuy_df["imps"][i])]
+                        update_data3.append(self.update_data_format(prebuy_range3, 'ROWS', values3))
+                    
+                    if prebuy_df["clicks"][i] != -1:
+                        prebuy_range4 = "{}!{}{}".format(compaign_name, prebuy_df["Column2"][i], prebuy_df["Index"][i])
+                        values4 = [int(prebuy_df["clicks"][i])]
+                        update_data3.append(self.update_data_format(prebuy_range4, 'ROWS', values4))
+            
+            ## 加總Prebuy
+            unique_prebuy_list = list(set(prebuy_df["Column1"]))
+            for j in unique_prebuy_list:
+                df = prebuy_df[(prebuy_df["Column1"] == j) & (prebuy_df["Display"] != "Pre-buy") ].reset_index(drop=True)
+                df["imps"][df["imps"] == -1] = 0
+                df["clicks"][df["clicks"] == -1] = 0
+                index = prebuy_df["Index"][(prebuy_df["Column1"] == j) & (prebuy_df["Display"] == "Pre-buy")].reset_index(drop = True)[0]
+                prebuy_range2 = "{}!{}{}:{}{}".format(compaign_name, df["Column1"][0], index, df["Column2"][0], index)
+                values2 = [int(sum(df["imps"])), int(sum(df["clicks"]))]
+                update_data3.append(self.update_data_format(prebuy_range2, 'ROWS', values2))
+       
+        return update_data3
+        
     def update_values(self, spreadsheet_id, update_data):
 
         spreadsheet_id = spreadsheet_id # TODO: Update placeholder value.
@@ -468,7 +532,6 @@ class GoogleSheets:
             # How the input data should be interpreted.
             'value_input_option': 'RAW',  # TODO: Update placeholder value.
             # The new values to apply to the spreadsheet.
-            # append進去
             'data': update_data,
 
         }
@@ -586,12 +649,12 @@ class GoogleSheets:
                                             fields='id, parents').execute()
     
     
-    def clean_trafficker_email(self, report, trafficker_email = None):
+    def clean_trafficker_email(self, report, traffickers = None):
         
         data = {}
         # 預定要寄給的負責人
-        if trafficker_email:
-            for j in trafficker_email:
+        if traffickers:
+            for j in traffickers:
                 if j.get("email"):
                     data[j.get("email")] = j.get("name")
 
