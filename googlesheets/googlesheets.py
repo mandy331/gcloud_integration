@@ -291,7 +291,7 @@ class GoogleSheets:
         update_data1 = []
 
         ## 整理Advertiser、Period數據
-        agency = "Agency：{}".format(compaign_name)
+        agency = "Agency："
         advertiser = "Advertiser：{}".format(campaign_report["Dimension.ORDER_NAME"][0])
         format2_start_date = start_date.strftime("%m/%d")
         format2_end_date = end_date.strftime("%m/%d")
