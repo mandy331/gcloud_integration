@@ -450,7 +450,7 @@ class GoogleSheets:
         
         ## 每日數據
         clean_data = pandas.DataFrame(all_data.groupby(['Column1','Column2','Column3','Index'])['Column.AD_SERVER_IMPRESSIONS', 'Column.AD_SERVER_CLICKS'].sum().reset_index(drop=False))
-        clean_data["Column.AD_SERVER_CTR"] = round(clean_data["Column.AD_SERVER_CLICKS"] / clean_data["Column.AD_SERVER_IMPRESSIONS"], 4)
+        clean_data["Column.AD_SERVER_CTR"] = round(clean_data["Column.AD_SERVER_CLICKS"] / clean_data["Column.AD_SERVER_IMPRESSIONS"] * 100, 2)
         
         # 填入每日數據
         for j in range(len(clean_data)):
@@ -458,7 +458,7 @@ class GoogleSheets:
             values = []
             values.append(int(clean_data["Column.AD_SERVER_IMPRESSIONS"][j]))
             values.append(int(clean_data["Column.AD_SERVER_CLICKS"][j]))
-            values.append(clean_data["Column.AD_SERVER_CTR"][j])
+            values.append('{:.2f}%'.format(clean_data["Column.AD_SERVER_CTR"][j]))
             update_data1.append(self.update_data_format(data_range, 'ROWS', values))
         
     
