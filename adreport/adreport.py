@@ -18,7 +18,6 @@ class adreport():
         
         if not report.empty:
             googlesheets = GoogleSheets(report, start_date, end_date)
-            googlesheets.run(params)
             spreadsheet_url, new_trafficker_email = googlesheets.run(params)
             sendgridMail().send_successful_mail(params['order_id'], report, spreadsheet_url, new_trafficker_email)
         
