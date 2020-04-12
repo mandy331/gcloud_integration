@@ -574,9 +574,11 @@ class GoogleSheets:
             unique_prebuy_list = list(set(prebuy_df["Column1"]))
             for j in unique_prebuy_list:
                 df2 = prebuy_df[(prebuy_df["Column1"] == j) & (prebuy_df["Display"] != "Pre-buy")].reset_index(drop=True)
+                df3 = df2[df2["imps"] > 0]
+                df4 = df2[df2["clicks"] > 0]
+                
+                total_imps, total_clicks = int(sum(df3["imps"])), int(sum(df4["clicks"]))
                 index = prebuy_df["Index"][(prebuy_df["Column1"] == j) & (prebuy_df["Display"] == "Pre-buy")].reset_index(drop = True)[0]
-
-                total_imps, total_clicks = int(sum(df2["imps"])), int(sum(df2["clicks"]))
                 
                 if total_imps > 0:
                     values2 = [total_imps]
