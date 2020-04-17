@@ -438,7 +438,7 @@ class GoogleSheets:
         last_prebuy_index = row_index_df["Index"].max() + 2
         
         ## 定義最後一列的位置
-        last_row_index = last_total_index + 3
+        last_row_index = last_total_index + 2
 
         ## 紀錄日期和Total、Pre-buy列的Index
         data_index_df = row_index_df[~(row_index_df["Display"].str.contains("Total")) & ~(row_index_df["Display"].str.contains("Pre-buy")) & ~(row_index_df["Display"].str.contains("達成率"))].reset_index(drop =True)
@@ -532,20 +532,17 @@ class GoogleSheets:
     
     def clean_column_name(self, campaign_prebuy_data, column_index_df):
         
-        campaign_prebuy_data["版位名稱2"] = campaign_prebuy_data["版位名稱"].apply(lambda x:str(x).replace(" ",""))
+        campaign_prebuy_data["版位名稱2"] = campaign_prebuy_data["版位名稱"].apply(lambda x:str(x).replace(" ","").replace("_","").replace("__","").replace("＿",""))
 
-        column_index_df["版位名稱2"] = column_index_df["版位名稱"].apply(lambda x:str(x).replace(" ","").replace("_"," ").replace("__"," ").replace("＿"," "))
+        def clean_campaign(placement):
+            placement = placement.lstrip()
+            pattern2 = r"((.*)_(.*))"
+            result2 = re.findall(pattern2, placement)
+            placement2 = result2[0][1]
+            return placement2        
         
-        new_column_name = []
-        for i in range(len(column_index_df)):
-            origin_prebuy_name = str(column_index_df["版位名稱2"][i])
-            k = len(origin_prebuy_name.split(" ")) - 1
-            if k == 1:
-                new_column_name.append("{}".format(str(origin_prebuy_name).split(" ")[0].strip()))
-            if k == 2:
-                new_column_name.append("{}_{}".format(str(origin_prebuy_name).split(" ")[0], origin_prebuy_name.split(" ")[1]))
+        column_index_df["版位名稱2"] = column_index_df["版位名稱"].apply(lambda x:clean_campaign(x).replace(" ","").replace("_","").replace("__","").replace("＿",""))
 
-        column_index_df["版位名稱2"] = new_column_name
         new_campaign_prebuy_data = campaign_prebuy_data[['版位名稱2', 'Campaign', 'year_month', 'imps', 'clicks']]
         new_column_index_df = column_index_df[['版位名稱2', 'Column1', 'Column2']]
         
