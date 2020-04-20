@@ -539,14 +539,11 @@ class GoogleSheets:
             pattern2 = r"((.*)_(.*))"
             result2 = re.findall(pattern2, placement)
             placement2 = result2[0][1]
-            return placement2        
+            return placement2      
         
         column_index_df["版位名稱2"] = column_index_df["版位名稱"].apply(lambda x:clean_campaign(x).replace(" ","").replace("_","").replace("__","").replace("＿",""))
-
-        new_campaign_prebuy_data = campaign_prebuy_data[['版位名稱2', 'Campaign', 'year_month', 'imps', 'clicks']]
-        new_column_index_df = column_index_df[['版位名稱2', 'Column1', 'Column2']]
-        
-        return new_campaign_prebuy_data, new_column_index_df
+      
+        return campaign_prebuy_data, column_index_df
         
     def fill_prebuy_data(self, compaign_name, new_campaign_prebuy_data, new_column_index_df, prebuy_index_df, last_prebuy_index):
         
