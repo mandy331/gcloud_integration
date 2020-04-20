@@ -492,7 +492,17 @@ class GoogleSheets:
         values2 = ["Total"]
         update_data2.append(self.update_data_format(total_range2, 'COLUMNS', values2))
         
-                
+
+        def get_total_formula(df, month_total_index_list):
+            total_imps = "="
+            total_clicks = "="
+            for p in month_total_index_list:
+                total_imps += "{}{}+".format(df["Column1"][0], p)
+                total_clicks += "{}{}+".format(df["Column2"][0], p)
+            total_imps = total_imps.rstrip('+')
+            total_clicks = total_clicks.rstrip('+')
+            return total_imps, total_clicks     
+
         ## 填入Total數據
         for j in unique_placement:
             df = all_data[all_data["Column1"] == j].reset_index(drop=True)
@@ -503,24 +513,13 @@ class GoogleSheets:
                 
                 total_range3 = "{}!{}{}:{}{}".format(compaign_name, df["Column1"][0], total_index_df["Index"][k], df["Column2"][0], total_index_df["Index"][k])
                 update_data2.append(self.update_data_format(total_range3, 'ROWS', values3)) 
-            
-        def get_total_formula(df, month_total_index_list):
-            total_imps = "="
-            total_clicks = "="
-            for p in month_total_index_list:
-                total_imps += "{}{}+".format(df["Column1"][0], p)
-                total_clicks += "{}{}+".format(df["Column2"][0], p)
-            total_imps = total_imps.rstrip('+')
-            total_clicks = total_clicks.rstrip('+')
-            return total_imps, total_clicks
-        
-        # 填入大結Total
-        month_total_index_list = list(total_index_df["Index"])
-        total_imps, total_clicks = get_total_formula(df, month_total_index_list)
-        values4 = [total_imps, total_clicks]
-        total_range4 = "{}!{}{}:{}{}".format(compaign_name, df["Column1"][0], last_total_index, df["Column2"][0], last_total_index)
-        update_data2.append(self.update_data_format(total_range4, 'ROWS', values4)) 
 
+            # 填入大結Total數據
+            month_total_index_list = list(total_index_df["Index"])
+            total_imps, total_clicks = get_total_formula(df, month_total_index_list)
+            values4 = [total_imps, total_clicks]
+            total_range4 = "{}!{}{}:{}{}".format(compaign_name, df["Column1"][0], last_total_index, df["Column2"][0], last_total_index)
+            update_data2.append(self.update_data_format(total_range4, 'ROWS', values4)) 
 
         return update_data2
 
