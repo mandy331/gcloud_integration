@@ -102,12 +102,12 @@ class GoogleSheets:
         self.cert(DRIVE_SCOPES)
         self.move_to_folder(self.folder, create_spreadsheet_id)     
         
-        # if "traffickers" in params:
-        #     new_trafficker_email = self.clean_trafficker_email(self.report, params["traffickers"])
-        # else:
-        #     new_trafficker_email = self.clean_trafficker_email(self.report)
+        if "traffickers" in params:
+            new_trafficker_email = self.clean_trafficker_email(self.report, params["traffickers"])
+        else:
+            new_trafficker_email = self.clean_trafficker_email(self.report)
 
-        # return spreadsheet_url, new_trafficker_email
+        return spreadsheet_url, new_trafficker_email
     
     def clean_prebuy_data(self, prebuy, start_date, end_date):
         
