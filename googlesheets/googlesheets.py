@@ -590,18 +590,20 @@ class GoogleSheets:
         def fill_data(prebuy_df, index = None):
             for i in range(len(prebuy_df)):
                 if index == None:
-                    index = prebuy_df["Index"][i]
-                
+                    index2 = prebuy_df["Index"][i]
+                else:
+                    index2 = index
+
                 if prebuy_df["imps"][i] != -1:
-                    prebuy_range3 = "{}!{}{}".format(compaign_name, prebuy_df["Column1"][i], index)
+                    prebuy_range3 = "{}!{}{}".format(compaign_name, prebuy_df["Column1"][i], index2)
                     values3 = [int(prebuy_df["imps"][i])]
                     update_data3.append(self.update_data_format(prebuy_range3, 'ROWS', values3))
                 
                 if prebuy_df["clicks"][i] != -1:
-                    prebuy_range4 = "{}!{}{}".format(compaign_name, prebuy_df["Column2"][i], index)
+                    prebuy_range4 = "{}!{}{}".format(compaign_name, prebuy_df["Column2"][i], index2)
                     values4 = [int(prebuy_df["clicks"][i])]
                     update_data3.append(self.update_data_format(prebuy_range4, 'ROWS', values4))
-            
+          
             return update_data3
 
         
