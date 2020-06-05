@@ -91,10 +91,6 @@ class GoogleSheets:
                 new_campaign_prebuy_data, new_column_index_df = self.clean_column_name(campaign_prebuy_data, column_index_df)
                 update_data3 = self.fill_prebuy_data(campaign[i], new_campaign_prebuy_data, new_column_index_df, prebuy_index_df, last_prebuy_index)
                 self.update_values(create_spreadsheet_id, update_data3)
-
-            # 將空的row填入顏色
-            color_requests = self.get_background_color(sheet_id, no_data_index_list)
-            self.change_background_color(create_spreadsheet_id, color_requests)
             
             # 刪除空的行列
             self.delete_empty_cols_rows(create_spreadsheet_id, sheet_id, last_column_index, last_row_index)
@@ -636,50 +632,7 @@ class GoogleSheets:
 
         # TODO: Change code below to process the `response` dict:
         pprint(response)
-    
-    def get_background_color(self, sheet_id, no_data_index_list):
-
-        color_requests = []
-        
-        for k in no_data_index_list:
-            requests = {
-                "repeatCell": {
-                    "range": {
-                        "sheetId": sheet_id,
-                        "startRowIndex": k - 1,
-                        "endRowIndex": k,
-                        "startColumnIndex": 0,
-                        "endColumnIndex": 133,
-                    },
-                    "cell": {
-                        "userEnteredFormat": {
-                            "backgroundColor": {
-                                "red": 0.788,
-                                "green": 0.854,
-                                "blue": 0.972,
-                                "alpha": 1.0
-                            }
-                        }
-                    },
-                    "fields": "userEnteredFormat(backgroundColor)"
-                }
-            }
-
-            color_requests.append(requests)
-        
-        return color_requests
-
-
-    def change_background_color(self, spreadsheet_id, color_requests):
-        
-        body = {
-            'requests': color_requests
-        }
-        
-        response = self.service.spreadsheets().batchUpdate(
-            spreadsheetId=spreadsheet_id,
-            body=body).execute()
-        
+  
     def copy_total_three_rows(self, spreadsheet_id, sheet_id, total_start_index):
 
         spreadsheet_id = spreadsheet_id  # TODO: Update placeholder value.
